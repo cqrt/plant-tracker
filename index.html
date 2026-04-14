@@ -669,32 +669,43 @@ onValue(STATE_REF, (snapshot) => {
 
   if (snapshot.exists()) {
     const remote = snapshot.val();
-    // Safe migration of missing fields
-    if (!remote.plantings)        remote.plantings        = [];
-    if (!remote.archives)         remote.archives         = [];
-    if (!remote.corrections)      remote.corrections      = { pittos:0, toetoe:0, cabbage:0, griselinia:0, hebe:0 };
-    if (!remote.transfers)        remote.transfers        = [];
-    if (!remote.startingSupplier) remote.startingSupplier = Object.assign({}, remote.supplier);
-    remote.plantings = remote.plantings.map(p => {
+
+    // Normalise every field that should be an array
+    // Firebase can return arrays as keyed objects
+    const toArr = v => !v ? [] : Array.isArray(v) ? v : Object.values(v);
+
+    remote.plantings  = toArr(remote.plantings).map(p => {
       if (!p.species) p.species = {};
       if (!p.yardId)  p.yardId  = 'depot';
       return p;
     });
-    // Write into the plain global — no getter/setter tricks
+    remote.orders    = toArr(remote.orders);
+    remote.transfers = toArr(remote.transfers);
+    remote.archives  = toArr(remote.archives).map(arc => {
+      arc.plantings  = toArr(arc.plantings);
+      arc.orders     = toArr(arc.orders);
+      arc.transfers  = toArr(arc.transfers);
+      arc.sites      = toArr(arc.sites);
+      arc.groups     = toArr(arc.groups);
+      return arc;
+    });
+    remote.sites     = toArr(remote.sites);
+    remote.groups    = toArr(remote.groups);
+
+    if (!remote.corrections)      remote.corrections      = Object.assign({}, window._DEFAULT_CORRECTIONS);
+    if (!remote.startingSupplier) remote.startingSupplier = Object.assign({}, remote.supplier);
+
     window.appState = remote;
   } else {
-    // First ever load — push default state up to Firebase
     window._fbSave(window.appState);
   }
 
-  // Hide the loading overlay
   const overlay = document.getElementById('loading-overlay');
   if (overlay && !overlay.classList.contains('hidden')) {
     overlay.classList.add('hidden');
     setTimeout(() => { overlay.style.display = 'none'; }, 450);
   }
 
-  // Re-render the currently visible page
   if (typeof window._reRenderActive === 'function') {
     window._reRenderActive();
   }
@@ -895,6 +906,12 @@ function formatDisplayDate(dateStr) {
     return new Date(dateStr+'T12:00:00').toLocaleDateString('en-NZ',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   } catch(e) { return dateStr; }
 }
+function toArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  // Firebase returned a keyed object — convert back to array
+  return Object.values(val);
+}
 
 // ── DASHBOARD ─────────────────────────────────────
 function renderDashboard() {
@@ -949,13 +966,14 @@ function renderTransferGrid() {
   if (!grid) return;
   grid.innerHTML = '';
   PLANTS.forEach(p => {
-    const avail = state.depot[p.id]||0;
+    const avail = state.depot[p.id] || 0;
     const row   = document.createElement('div');
     row.className = 'transfer-row';
     row.innerHTML = `
       <div class="plant-info">
         <div class="plant-name">${p.name}</div>
-        <div class="avail-note">${avail.toLocaleString()} in depot</div>
+        <div style="font-size:11px;color:var(--text-light);font-style:italic;margin-top:1px;">${p.sci}</div>
+        <div class="avail-note" style="margin-top:3px;">${avail.toLocaleString()} in depot</div>
       </div>
       <input type="number" min="0" step="1" value="0" id="tr-${p.id}" oninput="updateTransferTotal()" />
     `;
@@ -1119,18 +1137,19 @@ function selectYard(yardId) {
 }
 
 function renderSpeciesGrid() {
-  const state=getState();
-  const grid=document.getElementById('planting-species-grid');
-  if(!grid) return;
-  grid.innerHTML='';
-  PLANTS.forEach(p=>{
-    const avail=(state[_selectedYard]?.[p.id])||0;
-    const row=document.createElement('div');
-    row.className='species-input-row';
-    row.innerHTML=`
+  const state = getState();
+  const grid  = document.getElementById('planting-species-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  PLANTS.forEach(p => {
+    const avail = (state[_selectedYard]?.[p.id]) || 0;
+    const row   = document.createElement('div');
+    row.className = 'species-input-row';
+    row.innerHTML = `
       <div class="plant-info">
         <div class="plant-name">${p.name}</div>
-        <div class="avail-note" id="sp-hint-${p.id}">${avail.toLocaleString()} available</div>
+        <div style="font-size:11px;color:var(--text-light);font-style:italic;margin-top:1px;">${p.sci}</div>
+        <div class="avail-note" id="sp-hint-${p.id}" style="margin-top:3px;">${avail.toLocaleString()} available</div>
       </div>
       <input type="number" min="0" step="1" value="0" id="sp-${p.id}"
         oninput="updateSpeciesHint('${p.id}',${avail})" />
@@ -1386,38 +1405,46 @@ function seasonModalNext() {
 }
 
 function confirmNewSeason() {
-  const state =getState();
-  const name  =document.getElementById('new-season-name').value.trim();
-  const date  =document.getElementById('new-season-date').value;
-  const newStock={};
-  PLANTS.forEach(p=>{ newStock[p.id]=parseInt(document.getElementById('new-stock-'+p.id).value)||0; });
+  const state    = getState();
+  const name     = document.getElementById('new-season-name').value.trim();
+  const date     = document.getElementById('new-season-date').value;
+  const newStock = {};
+  PLANTS.forEach(p => {
+    newStock[p.id] = parseInt(document.getElementById('new-stock-'+p.id).value) || 0;
+  });
 
-  const archive={
-    name, start:state.seasonStart, end:new Date().toISOString().split('T')[0],
-    startingSupplier:Object.assign({},state.startingSupplier),
-    finalSupplier:   Object.assign({},state.supplier),
-    finalDepot:      Object.assign({},state.depot),
-    finalCorrections:Object.assign({},state.corrections),
-    transfers:       JSON.parse(JSON.stringify(state.transfers||[])),
-    orders:          JSON.parse(JSON.stringify(state.orders)),
-    plantings:       JSON.parse(JSON.stringify(state.plantings)),
-    sites:           JSON.parse(JSON.stringify(state.sites)),
-    groups:          JSON.parse(JSON.stringify(state.groups)),
-    totalPlanted:    totalPlanted(),
-    totalOrdered:    state.orders.reduce((s,o)=>s+(o.total||0),0),
-    archivedAt:      Date.now(),
+  // Safely snapshot current season into the archive
+  const archive = {
+    name,
+    start:            state.seasonStart,
+    end:              new Date().toISOString().split('T')[0],
+    startingSupplier: Object.assign({}, state.startingSupplier),
+    finalSupplier:    Object.assign({}, state.supplier),
+    finalDepot:       Object.assign({}, state.depot),
+    finalCorrections: Object.assign({}, state.corrections),
+    transfers:        toArray(state.transfers).map(t => Object.assign({}, t)),
+    orders:           toArray(state.orders).map(o => Object.assign({}, o)),
+    plantings:        toArray(state.plantings).map(p => Object.assign({}, p)),
+    sites:            toArray(state.sites).map(s => Object.assign({}, s)),
+    groups:           toArray(state.groups).map(g => Object.assign({}, g)),
+    totalPlanted:     totalPlanted(),
+    totalOrdered:     toArray(state.orders).reduce((s,o) => s + (o.total||0), 0),
+    archivedAt:       Date.now(),
   };
 
-  window.appState={
-    seasonName:name, seasonStart:date,
-    startingSupplier:Object.assign({},newStock),
-    supplier:        Object.assign({},newStock),
-    depot:           Object.assign({},DEFAULT_DEPOT),
-    corrections:     Object.assign({},DEFAULT_CORRECTIONS),
-    orders:[], transfers:[], plantings:[],
-    archives:[archive,...(state.archives||[])],
-    sites:  JSON.parse(JSON.stringify(state.sites)),
-    groups: JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
+  window.appState = {
+    seasonName:       name,
+    seasonStart:      date,
+    startingSupplier: Object.assign({}, newStock),
+    supplier:         Object.assign({}, newStock),
+    depot:            Object.assign({}, DEFAULT_DEPOT),
+    corrections:      Object.assign({}, DEFAULT_CORRECTIONS),
+    orders:           [],
+    transfers:        [],
+    plantings:        [],
+    archives:         [archive, ...toArray(state.archives)],
+    sites:            toArray(state.sites).map(s => Object.assign({}, s)),
+    groups:           JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
   };
   saveState();
   closeSeasonModal();
