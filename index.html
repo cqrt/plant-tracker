@@ -738,15 +738,16 @@ const PLANTS = [
   { id: 'pittos_eug',     name: 'Pittosporum', sci: 'P. eugenioides .5lt',  traySize: 28 },
   { id: 'toetoe',     name: 'Austroderia', sci: 'A. richardii .5lt',    traySize: 28 },
   { id: 'cabbage',    name: 'Cordyline',   sci: 'C. australis .5lt',    traySize: 28 },
-  { id: 'griselinia', name: 'Griselinia',  sci: 'G. littoralis .5lt',   traySize: 28 },
+  { id: 'griselinia_point5lt', name: 'Griselinia',  sci: 'G. littoralis .5lt',   traySize: 28 },
+  { id: 'griselinia_2lt', name: 'Griselinia',  sci: 'G. littoralis 2lt',   traySize: 6 },
   { id: 'hebe',       name: 'Hebe',        sci: 'H. salicifolia .7lt',  traySize: 20 },
   { id: 'flax_point5lt',   name: 'Phormium',    sci: 'P. tenax .5lt',  traySize: 28 },
   { id: 'flax_2lt',   name: 'Phormium',    sci: 'P. tenax 2lt',  traySize: 6 },
 ];
 
-const DEFAULT_SUPPLIER    = { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 };
-const DEFAULT_DEPOT       = { pittos_ten:0, pittos_eug:0, toetoe:0, cabbage:0, griselinia:0, hebe:0, flax_point5lt:0, flax_2lt:0 };
-const DEFAULT_CORRECTIONS = { pittos_ten:0, pittos_eug:0, toetoe:0, cabbage:0, griselinia:0, hebe:0, flax_point5lt:0, flax_2lt:0 };
+const DEFAULT_SUPPLIER    = { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 };
+const DEFAULT_DEPOT       = { pittos_ten:0, pittos_eug:0, toetoe:0, cabbage:0, griselinia_point5lt:0, griselinia_2lt:0, hebe:0, flax_point5lt:0, flax_2lt:0 };
+const DEFAULT_CORRECTIONS = { pittos_ten:0, pittos_eug:0, toetoe:0, cabbage:0, griselinia_point5lt:0, griselinia_2lt:0, hebe:0, flax_point5lt:0, flax_2lt:0 };
 window._DEFAULT_CORRECTIONS = DEFAULT_CORRECTIONS; // expose for module script
 
 const DEFAULT_SITES = [
@@ -754,14 +755,14 @@ const DEFAULT_SITES = [
   { id:'thomsons_bush', name:'Thomsons Bush',   expected:376  },
   { id:'oreti_river', name:'Oreti River',       expected:2990 },
   { id:'waka_ama', name:'Waka Ama',             expected:2328 },
-  { id:'Omaui',   name:'Omaui',                expected:753 },
+  { id:'omaui',   name:'Omaui',                expected:753 },
   { id:'fosbender',  name:'Fosbender Park',     expected:424 },
   { id:'hatchs_hill_picnic',  name:"Hatch's Hill Picnic",  expected:442 },
   { id:'hatch1',       name:"Hatch's Hill 1",   expected:0 },
   { id:'hatch2',       name:"Hatch's Hill 2",   expected:0 },
   { id:'oreti-rugby',  name:'Oreti Rugby Park',  expected:1058 },
   { id:'pistol',       name:'Pistol Club',       expected:604  },
-  { id:'rodeo',        name:'Rodeo CLub',       expected:0 },
+  { id:'rodeo',        name:'Rodeo Club',       expected:0 },
 ];
 const DEFAULT_GROUPS = [
   { id:'rangers',    name:'Rangers'     },
