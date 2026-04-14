@@ -453,33 +453,37 @@
   </div>
 
   <!-- ORDER FORM -->
-  <div id="page-order" class="page">
-    <p class="section-title">New Plant Order</p>
-    <p class="section-sub">Stock will be transferred from supplier to depot on submission</p>
-    <div class="form-card">
-      <p class="form-section-title">Order details</p>
-      <div class="form-meta">
-        <div class="form-group">
-          <label class="form-label">Location / Group</label>
-          <input type="text" id="order-location" placeholder="e.g. Queens Park — Rangers" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Notes (optional)</label>
-          <input type="text" id="order-notes" placeholder="e.g. Delivered by truck" />
-        </div>
+<div id="page-order" class="page">
+  <p class="section-title">New Plant Order</p>
+  <p class="section-sub">Stock will be transferred from supplier to depot on submission</p>
+  <div class="form-card">
+    <p class="form-section-title">Order details</p>
+    <div class="form-meta">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" id="order-date" />
       </div>
-      <p class="form-section-title">Plant quantities</p>
-      <div class="form-grid" id="order-form-grid"></div>
-      <hr class="divider">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-        <div>
-          <div style="font-size:13px;color:var(--text-light);">Total plants in order</div>
-          <div style="font-family:'Playfair Display',serif;font-size:24px;color:var(--green-700);" id="order-running-total">0</div>
-        </div>
-        <button class="btn btn-primary" onclick="submitOrder()">&#10003; Submit Order</button>
+      <div class="form-group">
+        <label class="form-label">Location / Group</label>
+        <input type="text" id="order-location" placeholder="e.g. Queens Park — Rangers" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <input type="text" id="order-notes" placeholder="e.g. Delivered by truck" />
       </div>
     </div>
+    <p class="form-section-title">Plant quantities</p>
+    <div class="form-grid" id="order-form-grid"></div>
+    <hr class="divider">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-size:13px;color:var(--text-light);">Total plants in order</div>
+        <div style="font-family:'Playfair Display',serif;font-size:24px;color:var(--green-700);" id="order-running-total">0</div>
+      </div>
+      <button class="btn btn-primary" onclick="submitOrder()">&#10003; Submit Order</button>
+    </div>
   </div>
+</div>
 
   <!-- HISTORY -->
   <div id="page-history" class="page">
@@ -1014,14 +1018,19 @@ function submitTransfer() {
 
 // ── ORDER FORM ────────────────────────────────────
 function renderOrderForm() {
-  const state=getState();
-  const grid=document.getElementById('order-form-grid');
-  grid.innerHTML='';
-  PLANTS.forEach(p=>{
-    const avail=state.supplier[p.id]||0;
-    const grp=document.createElement('div');
-    grp.className='form-group';
-    grp.innerHTML=`
+  const state = getState();
+  // Set default date to today if not already set
+  const dateField = document.getElementById('order-date');
+  if (dateField && !dateField.value) {
+    dateField.value = new Date().toISOString().split('T')[0];
+  }
+  const grid = document.getElementById('order-form-grid');
+  grid.innerHTML = '';
+  PLANTS.forEach(p => {
+    const avail = state.supplier[p.id] || 0;
+    const grp   = document.createElement('div');
+    grp.className = 'form-group';
+    grp.innerHTML = `
       <label class="form-label">${p.name} <span class="sci">${p.sci}</span></label>
       <input type="number" id="qty-${p.id}" min="0" step="1" value="0"
         oninput="updateOrderHints('${p.id}',${avail}); updateRunningTotal();" />
@@ -1052,29 +1061,32 @@ function updateRunningTotal() {
 }
 
 function submitOrder() {
-  const state=getState();
-  const location=document.getElementById('order-location').value.trim();
-  const notes   =document.getElementById('order-notes').value.trim();
-  const items={};
-  let total=0, hasError=false;
-  PLANTS.forEach(p=>{
-    const val=parseInt(document.getElementById('qty-'+p.id).value)||0;
-    if(val>(state.supplier[p.id]||0)) hasError=true;
-    if(val>0){ items[p.id]=val; total+=val; }
+  const state    = getState();
+  const date     = document.getElementById('order-date').value;
+  const location = document.getElementById('order-location').value.trim();
+  const notes    = document.getElementById('order-notes').value.trim();
+  const items    = {};
+  let total = 0, hasError = false;
+  if (!date) { toast('Please select a date'); return; }
+  PLANTS.forEach(p => {
+    const val = parseInt(document.getElementById('qty-'+p.id).value) || 0;
+    if (val > (state.supplier[p.id]||0)) hasError = true;
+    if (val > 0) { items[p.id] = val; total += val; }
   });
-  if(hasError)   { toast('⚠ One or more quantities exceed available stock'); return; }
-  if(total===0)  { toast('Enter at least one plant quantity'); return; }
-  PLANTS.forEach(p=>{
-    const qty=items[p.id]||0;
-    state.supplier[p.id]=(state.supplier[p.id]||0)-qty;
-    state.depot[p.id]   =(state.depot[p.id]||0)   +qty;
+  if (hasError)  { toast('⚠ One or more quantities exceed available stock'); return; }
+  if (total===0) { toast('Enter at least one plant quantity'); return; }
+  PLANTS.forEach(p => {
+    const qty = items[p.id] || 0;
+    state.supplier[p.id] = (state.supplier[p.id]||0) - qty;
+    state.depot[p.id]    = (state.depot[p.id]||0)    + qty;
   });
-  state.orders.unshift({ts:Date.now(),location,notes,items,total});
+  state.orders.unshift({ ts: Date.now(), date, location, notes, items, total });
   saveState();
   toast(`✓ Order submitted — ${total.toLocaleString()} plants transferred to depot`);
-  PLANTS.forEach(p=>{ document.getElementById('qty-'+p.id).value=0; });
-  document.getElementById('order-location').value='';
-  document.getElementById('order-notes').value='';
+  PLANTS.forEach(p => { document.getElementById('qty-'+p.id).value = 0; });
+  document.getElementById('order-date').value     = '';
+  document.getElementById('order-location').value = '';
+  document.getElementById('order-notes').value    = '';
   updateRunningTotal();
   renderOrderForm();
 }
@@ -1098,7 +1110,7 @@ function renderHistory() {
       <div class="order-meta">
         <div>
           <div style="font-weight:500;font-size:14px;margin-bottom:2px;">${order.location||'Unlabelled order'}</div>
-          <div class="order-date">${formatDate(order.ts)}</div>
+          <div class="order-date">${order.date ? formatDisplayDate(order.date) : formatDate(order.ts)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <span class="order-total">${order.total.toLocaleString()} plants</span>
