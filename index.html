@@ -417,6 +417,21 @@
   .yard-btn.selected       { border-color:var(--green-600); background:var(--green-50);    color:var(--green-700); }
   .yard-btn.selected-amber { border-color:var(--amber);     background:var(--amber-light); color:var(--amber); }
 
+  /* ── SETTINGS MANAGEMENT TABLES ── */
+  .mgmt-table { width:100%; border-collapse:collapse; margin-bottom:12px; }
+  .mgmt-table th { font-size:11px; font-weight:500; letter-spacing:0.5px; text-transform:uppercase; color:var(--text-light); padding:8px 12px; text-align:left; background:var(--cream-100); border-bottom:1px solid var(--cream-200); }
+  .mgmt-table td { padding:8px 12px; border-bottom:1px solid var(--cream-200); vertical-align:middle; font-size:13px; }
+  .mgmt-table tr:last-child td { border-bottom:none; }
+  .mgmt-table input[type="text"], .mgmt-table input[type="number"] { padding:5px 8px; font-size:13px; border-radius:6px; }
+  .mgmt-add-row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--cream-200); }
+  .mgmt-add-row .form-group { flex:1; min-width:120px; }
+  .mgmt-add-row label { font-size:11px; font-weight:500; color:var(--text-mid); display:block; margin-bottom:4px; }
+  .btn-sm { font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500; border:none; border-radius:6px; padding:7px 14px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; }
+  .btn-sm-primary { background:var(--green-700); color:white; }
+  .btn-sm-primary:hover { background:var(--green-600); }
+  .btn-sm-danger { background:var(--red-light); color:var(--red); border:1px solid #f0c0c0; }
+  .btn-sm-danger:hover { background:#f9d9d9; }
+
   .danger-zone { border:1.5px solid #f0c0c0; border-radius:14px; padding:20px 22px; background:var(--red-light); margin-top:20px; }
   .danger-zone h3 { font-family:'Playfair Display',serif; font-size:16px; color:var(--red); margin-bottom:6px; }
   .danger-zone p  { font-size:13px; color:#7a3030; margin-bottom:14px; line-height:1.5; }
@@ -653,6 +668,43 @@
       <p style="font-size:13px;color:var(--text-mid);margin-bottom:14px;">Use <strong>New Season</strong> in the nav bar to roll over to a fresh season while archiving all current data.</p>
       <button class="btn btn-primary" onclick="openSeasonModal()">&#8635; Start New Season</button>
     </div>
+
+    <!-- SPECIES MANAGEMENT -->
+    <div class="form-card">
+      <p class="form-section-title">Species</p>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Manage the plant species tracked this season. Species with existing stock or records cannot be deleted.</p>
+      <div id="species-mgmt-list"></div>
+      <div class="mgmt-add-row">
+        <div class="form-group"><label>Common name</label><input type="text" id="new-species-name" placeholder="e.g. Kowhai" /></div>
+        <div class="form-group"><label>Scientific / label</label><input type="text" id="new-species-sci" placeholder="e.g. S. microphylla 1lt" /></div>
+        <div class="form-group" style="max-width:110px;"><label>Tray size</label><input type="number" id="new-species-tray" min="1" value="28" /></div>
+        <button class="btn-sm btn-sm-primary" onclick="addSpecies()">+ Add Species</button>
+      </div>
+    </div>
+
+    <!-- SITES MANAGEMENT -->
+    <div class="form-card">
+      <p class="form-section-title">Planting Sites</p>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Add, rename, or remove planting sites. Sites with recorded plantings cannot be deleted.</p>
+      <div id="sites-mgmt-list"></div>
+      <div class="mgmt-add-row">
+        <div class="form-group"><label>Site name</label><input type="text" id="new-site-name" placeholder="e.g. Waihopai River" /></div>
+        <div class="form-group" style="max-width:130px;"><label>Expected plants</label><input type="number" id="new-site-expected" min="0" value="0" /></div>
+        <button class="btn-sm btn-sm-primary" onclick="addSite()">+ Add Site</button>
+      </div>
+    </div>
+
+    <!-- GROUPS MANAGEMENT -->
+    <div class="form-card">
+      <p class="form-section-title">Volunteer Groups</p>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Add, rename, or remove volunteer groups. Groups with recorded plantings cannot be deleted.</p>
+      <div id="groups-mgmt-list"></div>
+      <div class="mgmt-add-row">
+        <div class="form-group"><label>Group name</label><input type="text" id="new-group-name" placeholder="e.g. Scouts" /></div>
+        <button class="btn-sm btn-sm-primary" onclick="addGroup()">+ Add Group</button>
+      </div>
+    </div>
+
     <div class="form-card">
       <p class="form-section-title">Transfer log</p>
       <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">History of all Queens Park → Corrections transfers this season.</p>
@@ -842,11 +894,13 @@ function _startDbListener() {
         arc.groups     = toArr(arc.groups);
         return arc;
       });
+      remote.plants    = toArr(remote.plants).length ? toArr(remote.plants) : null;
       remote.sites     = toArr(remote.sites);
       remote.groups    = toArr(remote.groups);
 
       if (!remote.corrections)      remote.corrections      = Object.assign({}, window._DEFAULT_CORRECTIONS);
       if (!remote.startingSupplier) remote.startingSupplier = Object.assign({}, remote.supplier);
+      if (!remote.plants || !remote.plants.length) remote.plants = JSON.parse(JSON.stringify(window._DEFAULT_PLANTS || []));
 
       window.appState = remote;
     } else {
@@ -908,36 +962,52 @@ function _setSyncStatus(status) {
 ════════════════════════════════════════════════ -->
 <script>
 // ── INITIAL DATA ──────────────────────────────────────────────────────────
-const PLANTS = [
-  { id: 'pittos_ten',     name: 'Pittosporum', sci: 'P. tenuifolium .5lt',  traySize: 28 },
-  { id: 'pittos_eug',     name: 'Pittosporum', sci: 'P. eugenioides .5lt',  traySize: 28 },
-  { id: 'toetoe',     name: 'Austroderia', sci: 'A. richardii .5lt',    traySize: 28 },
-  { id: 'cabbage',    name: 'Cordyline',   sci: 'C. australis .5lt',    traySize: 28 },
+const DEFAULT_PLANTS = [
+  { id: 'pittos_ten',          name: 'Pittosporum', sci: 'P. tenuifolium .5lt',  traySize: 28 },
+  { id: 'pittos_eug',          name: 'Pittosporum', sci: 'P. eugenioides .5lt',  traySize: 28 },
+  { id: 'toetoe',              name: 'Austroderia', sci: 'A. richardii .5lt',    traySize: 28 },
+  { id: 'cabbage',             name: 'Cordyline',   sci: 'C. australis .5lt',    traySize: 28 },
   { id: 'griselinia_point5lt', name: 'Griselinia',  sci: 'G. littoralis .5lt',   traySize: 28 },
-  { id: 'griselinia_2lt', name: 'Griselinia',  sci: 'G. littoralis 2lt',   traySize: 6 },
-  { id: 'hebe',       name: 'Hebe',        sci: 'H. salicifolia .7lt',  traySize: 20 },
-  { id: 'flax_point5lt',   name: 'Phormium',    sci: 'P. tenax .5lt',  traySize: 28 },
-  { id: 'flax_2lt',   name: 'Phormium',    sci: 'P. tenax 2lt',  traySize: 6 },
+  { id: 'griselinia_2lt',      name: 'Griselinia',  sci: 'G. littoralis 2lt',    traySize: 6  },
+  { id: 'hebe',                name: 'Hebe',        sci: 'H. salicifolia .7lt',  traySize: 20 },
+  { id: 'flax_point5lt',       name: 'Phormium',    sci: 'P. tenax .5lt',        traySize: 28 },
+  { id: 'flax_2lt',            name: 'Phormium',    sci: 'P. tenax 2lt',         traySize: 6  },
 ];
 
-const DEFAULT_SUPPLIER    = { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 };
-const DEFAULT_DEPOT       = { pittos_ten:0, pittos_eug:0, toetoe:0, cabbage:0, griselinia_point5lt:0, griselinia_2lt:0, hebe:0, flax_point5lt:0, flax_2lt:0 };
-const DEFAULT_CORRECTIONS = { pittos_ten:0, pittos_eug:0, toetoe:0, cabbage:0, griselinia_point5lt:0, griselinia_2lt:0, hebe:0, flax_point5lt:0, flax_2lt:0 };
-window._DEFAULT_CORRECTIONS = DEFAULT_CORRECTIONS; // expose for module script
+// getPlants() returns the live configurable list from appState,
+// falling back to DEFAULT_PLANTS before Firebase loads.
+function getPlants() {
+  return (window.appState && window.appState.plants && window.appState.plants.length)
+    ? window.appState.plants : DEFAULT_PLANTS;
+}
+
+const DEFAULT_SUPPLIER_QTY = { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 };
+
+function _makeStockObj(qty) {
+  const obj = {};
+  DEFAULT_PLANTS.forEach(p => { obj[p.id] = qty[p.id] || 0; });
+  return obj;
+}
+
+const DEFAULT_SUPPLIER    = _makeStockObj(DEFAULT_SUPPLIER_QTY);
+const DEFAULT_DEPOT       = _makeStockObj({});
+const DEFAULT_CORRECTIONS = _makeStockObj({});
+window._DEFAULT_CORRECTIONS = DEFAULT_CORRECTIONS;
+window._DEFAULT_PLANTS      = DEFAULT_PLANTS;
 
 const DEFAULT_SITES = [
-  { id:'oreti-bridge', name:'Oreti Bridge',     expected:1076  },
-  { id:'thomsons_bush', name:'Thomsons Bush',   expected:376  },
-  { id:'oreti_river', name:'Oreti River',       expected:2990 },
-  { id:'waka_ama', name:'Waka Ama',             expected:2328 },
-  { id:'omaui',   name:'Omaui',                expected:753 },
-  { id:'fosbender',  name:'Fosbender Park',     expected:424 },
-  { id:'hatchs_hill_picnic',  name:"Hatch's Hill Picnic",  expected:442 },
-  { id:'hatch1',       name:"Hatch's Hill 1",   expected:0 },
-  { id:'hatch2',       name:"Hatch's Hill 2",   expected:0 },
-  { id:'oreti-rugby',  name:'Oreti Rugby Park',  expected:1058 },
-  { id:'pistol',       name:'Pistol Club',       expected:604  },
-  { id:'rodeo',        name:'Rodeo Club',       expected:0 },
+  { id:'oreti-bridge',        name:'Oreti Bridge',       expected:1076 },
+  { id:'thomsons_bush',       name:'Thomsons Bush',      expected:376  },
+  { id:'oreti_river',         name:'Oreti River',        expected:2990 },
+  { id:'waka_ama',            name:'Waka Ama',           expected:2328 },
+  { id:'omaui',               name:'Omaui',              expected:753  },
+  { id:'fosbender',           name:'Fosbender Park',     expected:424  },
+  { id:'hatchs_hill_picnic',  name:"Hatch's Hill Picnic",expected:442  },
+  { id:'hatch1',              name:"Hatch's Hill 1",     expected:0    },
+  { id:'hatch2',              name:"Hatch's Hill 2",     expected:0    },
+  { id:'oreti-rugby',         name:'Oreti Rugby Park',   expected:1058 },
+  { id:'pistol',              name:'Pistol Club',        expected:604  },
+  { id:'rodeo',               name:'Rodeo Club',         expected:0    },
 ];
 const DEFAULT_GROUPS = [
   { id:'rangers',    name:'Rangers'     },
@@ -950,12 +1020,11 @@ const DEFAULT_GROUPS = [
 ];
 
 // ── STATE ────────────────────────────────────────
-// appState is a plain global — no getter/setter, no proxy.
-// The Firebase onValue listener overwrites it when data arrives.
 const today = new Date().toISOString().split('T')[0];
 window.appState = {
   seasonName:       'Season ' + new Date().getFullYear(),
   seasonStart:      today,
+  plants:           JSON.parse(JSON.stringify(DEFAULT_PLANTS)),
   startingSupplier: Object.assign({}, DEFAULT_SUPPLIER),
   supplier:         Object.assign({}, DEFAULT_SUPPLIER),
   depot:            Object.assign({}, DEFAULT_DEPOT),
@@ -968,8 +1037,6 @@ window.appState = {
   groups:           JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
 };
 
-// Convenience: all app code uses `state` as a shorthand getter
-// This is a simple function — no defineProperty tricks
 function getState() { return window.appState; }
 
 // ── SAVE ─────────────────────────────────────────
@@ -1042,9 +1109,9 @@ function updateSeasonLabel() {
 }
 
 // ── HELPERS ───────────────────────────────────────
-function supplierTotal()    { const s=getState(); return PLANTS.reduce((t,p)=>t+(s.supplier[p.id]||0),0); }
-function depotTotal()       { const s=getState(); return PLANTS.reduce((t,p)=>t+(s.depot[p.id]||0),0); }
-function correctionsTotal() { const s=getState(); return PLANTS.reduce((t,p)=>t+(s.corrections[p.id]||0),0); }
+function supplierTotal()    { const s=getState(); return getPlants().reduce((t,p)=>t+(s.supplier[p.id]||0),0); }
+function depotTotal()       { const s=getState(); return getPlants().reduce((t,p)=>t+(s.depot[p.id]||0),0); }
+function correctionsTotal() { const s=getState(); return getPlants().reduce((t,p)=>t+(s.corrections[p.id]||0),0); }
 function totalPlanted()     { return getState().plantings.reduce((t,p)=>t+(p.count||0),0); }
 
 function siteActual(siteId) {
@@ -1092,8 +1159,8 @@ function renderDashboard() {
   document.getElementById('supplier-total-badge').textContent    = sup.toLocaleString()+' plants';
   document.getElementById('depot-total-badge').textContent       = dep.toLocaleString()+' plants';
   document.getElementById('corrections-total-badge').textContent = cor.toLocaleString()+' plants';
-  const maxS = PLANTS.reduce((m,p)=>Math.max(m,state.startingSupplier[p.id]||0),1);
-  const maxC = Math.max(...PLANTS.map(p=>state.corrections[p.id]||0),1);
+  const maxS = getPlants().reduce((m,p)=>Math.max(m,state.startingSupplier[p.id]||0),1);
+  const maxC = Math.max(...getPlants().map(p=>state.corrections[p.id]||0),1);
   renderStockTable('supplier-table',    'supplier',    maxS);
   renderStockTable('depot-table',       'depot',       maxS);
   renderStockTable('corrections-table', 'corrections', maxC);
@@ -1105,7 +1172,7 @@ function renderStockTable(tableId, stockKey, maxQty) {
   const table = document.getElementById(tableId);
   table.innerHTML = `<thead><tr><th>Plant</th><th>Trays</th><th>Qty</th></tr></thead>`;
   const tbody = document.createElement('tbody');
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     const qty = state[stockKey][p.id]||0;
     const w   = maxQty>0?pct(qty,maxQty):0;
     const tr  = document.createElement('tr');
@@ -1129,7 +1196,7 @@ function renderTransferGrid() {
   const grid  = document.getElementById('transfer-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     const avail = state.depot[p.id] || 0;
     const row   = document.createElement('div');
     row.className = 'transfer-row';
@@ -1148,7 +1215,7 @@ function renderTransferGrid() {
 
 function updateTransferTotal() {
   let total=0;
-  PLANTS.forEach(p=>{ total+=parseInt(document.getElementById('tr-'+p.id)?.value||0)||0; });
+  getPlants().forEach(p=>{ total+=parseInt(document.getElementById('tr-'+p.id)?.value||0)||0; });
   const el=document.getElementById('transfer-running-total');
   if(el) el.textContent=total.toLocaleString();
 }
@@ -1157,14 +1224,14 @@ function submitTransfer() {
   const state=getState();
   const items={};
   let total=0, hasError=false;
-  PLANTS.forEach(p=>{
+  getPlants().forEach(p=>{
     const val=parseInt(document.getElementById('tr-'+p.id).value)||0;
     if(val>(state.depot[p.id]||0)) hasError=true;
     if(val>0){ items[p.id]=val; total+=val; }
   });
   if(hasError)  { toast('⚠ Quantity exceeds available depot stock'); return; }
   if(total<1)   { toast('Enter at least one quantity to transfer');  return; }
-  PLANTS.forEach(p=>{
+  getPlants().forEach(p=>{
     const qty=items[p.id]||0;
     state.depot[p.id]       =(state.depot[p.id]||0)      -qty;
     state.corrections[p.id] =(state.corrections[p.id]||0)+qty;
@@ -1186,7 +1253,7 @@ function renderOrderForm() {
   }
   const grid = document.getElementById('order-form-grid');
   grid.innerHTML = '';
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     const avail = state.supplier[p.id] || 0;
     const grp   = document.createElement('div');
     grp.className = 'form-group';
@@ -1204,7 +1271,7 @@ function renderOrderForm() {
 function updateOrderHints(id, avail) {
   const val=parseInt(document.getElementById('qty-'+id).value)||0;
   const hint=document.getElementById('hint-'+id);
-  const p=PLANTS.find(x=>x.id===id);
+  const p=getPlants().find(x=>x.id===id);
   if(val>avail){
     hint.className='available-hint error'; hint.textContent=`⚠ Only ${avail.toLocaleString()} available`;
   } else if(val>0){
@@ -1216,7 +1283,7 @@ function updateOrderHints(id, avail) {
 
 function updateRunningTotal() {
   let total=0;
-  PLANTS.forEach(p=>{ total+=parseInt(document.getElementById('qty-'+p.id)?.value||0)||0; });
+  getPlants().forEach(p=>{ total+=parseInt(document.getElementById('qty-'+p.id)?.value||0)||0; });
   document.getElementById('order-running-total').textContent=total.toLocaleString();
 }
 
@@ -1228,14 +1295,14 @@ function submitOrder() {
   const items    = {};
   let total = 0, hasError = false;
   if (!date) { toast('Please select a date'); return; }
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     const val = parseInt(document.getElementById('qty-'+p.id).value) || 0;
     if (val > (state.supplier[p.id]||0)) hasError = true;
     if (val > 0) { items[p.id] = val; total += val; }
   });
   if (hasError)  { toast('⚠ One or more quantities exceed available stock'); return; }
   if (total===0) { toast('Enter at least one plant quantity'); return; }
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     const qty = items[p.id] || 0;
     state.supplier[p.id] = (state.supplier[p.id]||0) - qty;
     state.depot[p.id]    = (state.depot[p.id]||0)    + qty;
@@ -1243,7 +1310,7 @@ function submitOrder() {
   state.orders.unshift({ ts: Date.now(), date, location, notes, items, total });
   saveState();
   toast(`✓ Order submitted — ${total.toLocaleString()} plants transferred to depot`);
-  PLANTS.forEach(p => { document.getElementById('qty-'+p.id).value = 0; });
+  getPlants().forEach(p => { document.getElementById('qty-'+p.id).value = 0; });
   document.getElementById('order-date').value     = '';
   document.getElementById('order-location').value = '';
   document.getElementById('order-notes').value    = '';
@@ -1263,7 +1330,7 @@ function renderHistory() {
     const card=document.createElement('div');
     card.className='order-card';
     const pills=Object.entries(order.items).map(([id,qty])=>{
-      const p=PLANTS.find(x=>x.id===id);
+      const p=getPlants().find(x=>x.id===id);
       return `<span class="order-pill"><span class="qty-bold">${qty.toLocaleString()}</span> ${p?p.name:id}${p?` <em style="font-style:italic;opacity:0.7;font-size:11px;">${p.sci}</em>`:''}</span>`;
     }).join('');
     card.innerHTML=`
@@ -1287,7 +1354,7 @@ function renderHistory() {
 function deleteOrder(idx) {
   const state=getState();
   const o=state.orders[idx];
-  PLANTS.forEach(p=>{
+  getPlants().forEach(p=>{
     const qty=o.items[p.id]||0;
     state.supplier[p.id]=(state.supplier[p.id]||0)+qty;
     state.depot[p.id]   =Math.max(0,(state.depot[p.id]||0)-qty);
@@ -1313,7 +1380,7 @@ function renderSpeciesGrid() {
   const grid  = document.getElementById('planting-species-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     const avail = (state[_selectedYard]?.[p.id]) || 0;
     const row   = document.createElement('div');
     row.className = 'species-input-row';
@@ -1341,7 +1408,7 @@ function updateSpeciesHint(id, avail) {
     hint.className='avail-note'; hint.textContent=`${avail.toLocaleString()} available`;
   }
   let total=0;
-  PLANTS.forEach(p=>{ total+=parseInt(document.getElementById('sp-'+p.id)?.value||0)||0; });
+  getPlants().forEach(p=>{ total+=parseInt(document.getElementById('sp-'+p.id)?.value||0)||0; });
   const el=document.getElementById('planting-running-total');
   if(el) el.textContent=total.toLocaleString();
 }
@@ -1382,7 +1449,7 @@ function renderPlantings() {
       const yardLabel=p.yardId==='corrections'?'Corrections':'Queens Park';
       const speciesPills=p.species&&Object.keys(p.species).length>0
         ?Object.entries(p.species).map(([id,qty])=>{
-            const pl=PLANTS.find(x=>x.id===id);
+            const pl=getPlants().find(x=>x.id===id);
             return `<span class="badge" style="background:var(--cream-200);color:var(--text-mid);">${pl?pl.name:id}: ${qty.toLocaleString()}</span>`;
           }).join(''):'';
       const card=document.createElement('div');
@@ -1421,7 +1488,7 @@ function submitPlanting() {
   if(!groupId) { toast('Please select a group'); return; }
   const species={};
   let count=0, hasError=false;
-  PLANTS.forEach(p=>{
+  getPlants().forEach(p=>{
     const val  =parseInt(document.getElementById('sp-'+p.id).value)||0;
     const avail=state[yardId]?.[p.id]||0;
     if(val>avail) hasError=true;
@@ -1429,7 +1496,7 @@ function submitPlanting() {
   });
   if(hasError) { toast('⚠ Quantity exceeds available yard stock'); return; }
   if(count<1)  { toast('Enter at least one plant quantity');        return; }
-  PLANTS.forEach(p=>{
+  getPlants().forEach(p=>{
     const qty=species[p.id]||0;
     if(qty>0) state[yardId][p.id]=(state[yardId][p.id]||0)-qty;
   });
@@ -1438,7 +1505,7 @@ function submitPlanting() {
   const site     =state.sites.find(s=>s.id===siteId);
   const yardLabel=yardId==='corrections'?'Corrections':'Queens Park';
   toast(`✓ Logged ${count.toLocaleString()} plants from ${yardLabel} at ${site?site.name:siteId}`);
-  PLANTS.forEach(p=>{ document.getElementById('sp-'+p.id).value=0; });
+  getPlants().forEach(p=>{ document.getElementById('sp-'+p.id).value=0; });
   document.getElementById('planting-notes').value='';
   document.getElementById('planting-running-total').textContent='0';
   renderPlantings();
@@ -1449,7 +1516,7 @@ function deletePlanting(idx) {
   const p    =state.plantings[idx];
   const yardId=p.yardId||'depot';
   if(p.species){
-    PLANTS.forEach(pl=>{
+    getPlants().forEach(pl=>{
       const qty=p.species[pl.id]||0;
       if(qty>0) state[yardId][pl.id]=(state[yardId][pl.id]||0)+qty;
     });
@@ -1560,7 +1627,7 @@ function seasonModalNext() {
   if(!date){ toast('Please select a start date');  return; }
   const grid=document.getElementById('season-stock-inputs');
   grid.innerHTML='';
-  PLANTS.forEach(p=>{
+  getPlants().forEach(p=>{
     const row=document.createElement('div');
     row.className='season-stock-row';
     row.innerHTML=`
@@ -1581,7 +1648,7 @@ function confirmNewSeason() {
   const name     = document.getElementById('new-season-name').value.trim();
   const date     = document.getElementById('new-season-date').value;
   const newStock = {};
-  PLANTS.forEach(p => {
+  getPlants().forEach(p => {
     newStock[p.id] = parseInt(document.getElementById('new-stock-'+p.id).value) || 0;
   });
 
@@ -1604,19 +1671,24 @@ function confirmNewSeason() {
     archivedAt:       Date.now(),
   };
 
+  // Build fresh depot/corrections zeroed for current plants
+  const freshDepot = {}, freshCorrections = {};
+  getPlants().forEach(p => { freshDepot[p.id] = 0; freshCorrections[p.id] = 0; });
+
   window.appState = {
     seasonName:       name,
     seasonStart:      date,
+    plants:           getPlants().map(p => Object.assign({}, p)),
     startingSupplier: Object.assign({}, newStock),
     supplier:         Object.assign({}, newStock),
-    depot:            Object.assign({}, DEFAULT_DEPOT),
-    corrections:      Object.assign({}, DEFAULT_CORRECTIONS),
+    depot:            freshDepot,
+    corrections:      freshCorrections,
     orders:           [],
     transfers:        [],
     plantings:        [],
     archives:         [archive, ...toArray(state.archives)],
     sites:            toArray(state.sites).map(s => Object.assign({}, s)),
-    groups:           JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
+    groups:           toArray(state.groups).map(g => Object.assign({}, g)),
   };
   saveState();
   closeSeasonModal();
@@ -1635,7 +1707,7 @@ function renderArchives() {
   state.archives.forEach((arc,arcIdx)=>{
     const startFmt=arc.start?new Date(arc.start+'T12:00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}):'—';
     const endFmt  =arc.end  ?new Date(arc.end  +'T12:00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}):'—';
-    const speciesPills=PLANTS.map(p=>{
+    const speciesPills=getPlants().map(p=>{
       const start=arc.startingSupplier?.[p.id]??0;
       const final=arc.finalSupplier?.[p.id]??0;
       return `<span class="archive-pill"><strong>${p.name}</strong> <em style="font-size:11px;color:var(--text-light);font-weight:400;">${p.sci}</em> — ${Math.max(0,start-final).toLocaleString()} used of ${start.toLocaleString()}</span>`;
@@ -1710,7 +1782,7 @@ function renderArchives() {
       <div class="archive-stats">
         <div class="archive-stat"><div class="astat-label">Total planted</div><div class="astat-val">${(arc.totalPlanted||0).toLocaleString()}</div></div>
         <div class="archive-stat"><div class="astat-label">Total ordered</div><div class="astat-val">${(arc.totalOrdered||0).toLocaleString()}</div></div>
-        <div class="archive-stat"><div class="astat-label">Species used</div><div class="astat-val">${PLANTS.filter(p=>(arc.startingSupplier?.[p.id]||0)>(arc.finalSupplier?.[p.id]||0)).length} of ${PLANTS.length}</div></div>
+        <div class="archive-stat"><div class="astat-label">Species used</div><div class="astat-val">${getPlants().filter(p=>(arc.startingSupplier?.[p.id]||0)>(arc.finalSupplier?.[p.id]||0)).length} of ${getPlants().length}</div></div>
       </div>
       <div class="archive-summary">
         <div style="font-size:11px;color:var(--text-light);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;">Species — usage this season</div>
@@ -1771,6 +1843,13 @@ function switchArcTab(uid,panel) {
 // ── SETTINGS ──────────────────────────────────────
 function renderSettings() {
   const state=getState();
+
+  // Render the three management panels
+  renderSpeciesMgmt();
+  renderSitesMgmt();
+  renderGroupsMgmt();
+
+  // Transfer log
   const log=document.getElementById('transfer-log-list');
   if(!log) return;
   const transfers=state.transfers||[];
@@ -1780,7 +1859,7 @@ function renderSettings() {
   log.innerHTML='';
   transfers.forEach(t=>{
     const pills=Object.entries(t.items).map(([id,qty])=>{
-      const p=PLANTS.find(x=>x.id===id);
+      const p=getPlants().find(x=>x.id===id);
       return `<span class="order-pill"><span class="qty-bold">${qty}</span> ${p?p.name:id}</span>`;
     }).join('');
     const item=document.createElement('div');
@@ -1810,6 +1889,7 @@ function confirmFactoryReset() {
   const today=new Date().toISOString().split('T')[0];
   window.appState={
     seasonName:'Season '+new Date().getFullYear(), seasonStart:today,
+    plants:          JSON.parse(JSON.stringify(DEFAULT_PLANTS)),
     startingSupplier:Object.assign({},DEFAULT_SUPPLIER),
     supplier:        Object.assign({},DEFAULT_SUPPLIER),
     depot:           Object.assign({},DEFAULT_DEPOT),
@@ -1822,6 +1902,237 @@ function confirmFactoryReset() {
   closeFactoryResetModal();
   showPage('dashboard');
   toast('Factory reset complete — all data wiped');
+}
+
+// ── SETTINGS — SPECIES MANAGEMENT ─────────────────
+function renderSpeciesMgmt() {
+  const state = getState();
+  const plants = getPlants();
+  const container = document.getElementById('species-mgmt-list');
+  if (!container) return;
+  if (!plants.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px 0;">No species configured.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'mgmt-table';
+  table.innerHTML = '<thead><tr><th>Common name</th><th>Scientific / label</th><th>Tray size</th><th></th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  plants.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${p.name}" id="sp-edit-name-${idx}" style="width:100%;" /></td>
+      <td><input type="text" value="${p.sci}"  id="sp-edit-sci-${idx}"  style="width:100%;" /></td>
+      <td><input type="number" value="${p.traySize}" id="sp-edit-tray-${idx}" min="1" style="width:70px;" /></td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm btn-sm-primary" onclick="saveSpecies(${idx})" style="margin-right:4px;">Save</button>
+        <button class="btn-sm btn-sm-danger"  onclick="deleteSpecies(${idx})">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+function saveSpecies(idx) {
+  const state  = getState();
+  const plants = getPlants();
+  const name = document.getElementById('sp-edit-name-'+idx).value.trim();
+  const sci  = document.getElementById('sp-edit-sci-'+idx).value.trim();
+  const tray = parseInt(document.getElementById('sp-edit-tray-'+idx).value) || 1;
+  if (!name) { toast('Species name cannot be empty'); return; }
+  plants[idx].name     = name;
+  plants[idx].sci      = sci;
+  plants[idx].traySize = tray;
+  state.plants = plants;
+  saveState();
+  toast('✓ Species updated');
+  renderSpeciesMgmt();
+}
+
+function addSpecies() {
+  const state = getState();
+  const name  = document.getElementById('new-species-name').value.trim();
+  const sci   = document.getElementById('new-species-sci').value.trim();
+  const tray  = parseInt(document.getElementById('new-species-tray').value) || 28;
+  if (!name) { toast('Enter a species name'); return; }
+  // Generate a safe id from name+sci
+  const id = (name + '_' + sci).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').substring(0,40) + '_' + Date.now();
+  const plants = getPlants();
+  if (plants.find(p => p.id === id)) { toast('Species already exists'); return; }
+  plants.push({ id, name, sci, traySize: tray });
+  state.plants = plants;
+  // Initialise stock slots to 0
+  state.supplier[id]         = 0;
+  state.depot[id]            = 0;
+  state.corrections[id]      = 0;
+  state.startingSupplier[id] = 0;
+  saveState();
+  document.getElementById('new-species-name').value = '';
+  document.getElementById('new-species-sci').value  = '';
+  document.getElementById('new-species-tray').value = '28';
+  toast(`✓ Species "${name}" added`);
+  renderSpeciesMgmt();
+}
+
+function deleteSpecies(idx) {
+  const state  = getState();
+  const plants = getPlants();
+  const p      = plants[idx];
+  // Safety checks
+  if ((state.supplier[p.id]||0) > 0 || (state.depot[p.id]||0) > 0 || (state.corrections[p.id]||0) > 0) {
+    toast(`⚠ Cannot delete "${p.name}" — it has stock remaining`); return;
+  }
+  const usedInOrders    = (state.orders||[]).some(o => o.items && o.items[p.id]);
+  const usedInPlantings = (state.plantings||[]).some(pl => pl.species && pl.species[p.id]);
+  if (usedInOrders || usedInPlantings) {
+    toast(`⚠ Cannot delete "${p.name}" — it has orders or plantings recorded`); return;
+  }
+  if (!confirm(`Delete species "${p.name} ${p.sci}"? This cannot be undone.`)) return;
+  plants.splice(idx, 1);
+  state.plants = plants;
+  delete state.supplier[p.id];
+  delete state.depot[p.id];
+  delete state.corrections[p.id];
+  delete state.startingSupplier[p.id];
+  saveState();
+  toast(`Species "${p.name}" deleted`);
+  renderSpeciesMgmt();
+}
+
+// ── SETTINGS — SITES MANAGEMENT ───────────────────
+function renderSitesMgmt() {
+  const state     = getState();
+  const container = document.getElementById('sites-mgmt-list');
+  if (!container) return;
+  if (!state.sites.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px 0;">No sites configured.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'mgmt-table';
+  table.innerHTML = '<thead><tr><th>Site name</th><th>Expected</th><th>Planted</th><th></th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  state.sites.forEach((site, idx) => {
+    const planted = siteActual(site.id);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${site.name}" id="site-edit-name-${idx}" style="width:100%;" /></td>
+      <td><input type="number" value="${site.expected}" id="site-edit-exp-${idx}" min="0" style="width:90px;" /></td>
+      <td style="color:var(--green-700);font-weight:500;">${planted.toLocaleString()}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm btn-sm-primary" onclick="saveSite(${idx})" style="margin-right:4px;">Save</button>
+        <button class="btn-sm btn-sm-danger"  onclick="deleteSite(${idx})" ${planted>0?'disabled title="Has plantings"':''}>✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+function saveSite(idx) {
+  const state = getState();
+  const name  = document.getElementById('site-edit-name-'+idx).value.trim();
+  const exp   = parseInt(document.getElementById('site-edit-exp-'+idx).value) || 0;
+  if (!name) { toast('Site name cannot be empty'); return; }
+  state.sites[idx].name     = name;
+  state.sites[idx].expected = exp;
+  saveState();
+  toast('✓ Site updated');
+  renderSitesMgmt();
+}
+
+function addSite() {
+  const state = getState();
+  const name  = document.getElementById('new-site-name').value.trim();
+  const exp   = parseInt(document.getElementById('new-site-expected').value) || 0;
+  if (!name) { toast('Enter a site name'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'') + '_' + Date.now();
+  state.sites.push({ id, name, expected: exp });
+  saveState();
+  document.getElementById('new-site-name').value     = '';
+  document.getElementById('new-site-expected').value = '0';
+  toast(`✓ Site "${name}" added`);
+  renderSitesMgmt();
+}
+
+function deleteSite(idx) {
+  const state = getState();
+  const site  = state.sites[idx];
+  if (siteActual(site.id) > 0) { toast(`⚠ Cannot delete "${site.name}" — it has plantings recorded`); return; }
+  if (!confirm(`Delete site "${site.name}"?`)) return;
+  state.sites.splice(idx, 1);
+  saveState();
+  toast(`Site "${site.name}" deleted`);
+  renderSitesMgmt();
+}
+
+// ── SETTINGS — GROUPS MANAGEMENT ──────────────────
+function renderGroupsMgmt() {
+  const state     = getState();
+  const container = document.getElementById('groups-mgmt-list');
+  if (!container) return;
+  if (!state.groups.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px 0;">No groups configured.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'mgmt-table';
+  table.innerHTML = '<thead><tr><th>Group name</th><th>Total planted</th><th></th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  state.groups.forEach((g, idx) => {
+    const total = groupTotal(g.id);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${g.name}" id="grp-edit-name-${idx}" style="width:100%;" /></td>
+      <td style="color:var(--green-700);font-weight:500;">${total.toLocaleString()}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm btn-sm-primary" onclick="saveGroup(${idx})" style="margin-right:4px;">Save</button>
+        <button class="btn-sm btn-sm-danger"  onclick="deleteGroup(${idx})" ${total>0?'disabled title="Has plantings"':''}>✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+function saveGroup(idx) {
+  const state = getState();
+  const name  = document.getElementById('grp-edit-name-'+idx).value.trim();
+  if (!name) { toast('Group name cannot be empty'); return; }
+  state.groups[idx].name = name;
+  saveState();
+  toast('✓ Group updated');
+  renderGroupsMgmt();
+}
+
+function addGroup() {
+  const state = getState();
+  const name  = document.getElementById('new-group-name').value.trim();
+  if (!name) { toast('Enter a group name'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'') + '_' + Date.now();
+  state.groups.push({ id, name });
+  saveState();
+  document.getElementById('new-group-name').value = '';
+  toast(`✓ Group "${name}" added`);
+  renderGroupsMgmt();
+}
+
+function deleteGroup(idx) {
+  const state = getState();
+  const g     = state.groups[idx];
+  if (groupTotal(g.id) > 0) { toast(`⚠ Cannot delete "${g.name}" — it has plantings recorded`); return; }
+  if (!confirm(`Delete group "${g.name}"?`)) return;
+  state.groups.splice(idx, 1);
+  saveState();
+  toast(`Group "${g.name}" deleted`);
+  renderGroupsMgmt();
 }
 </script>
 </body>
