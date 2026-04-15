@@ -6,6 +6,7 @@
 <title>Plant Stock Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<meta name="google-signin-client_id" content="">
 <style>
   :root {
     --green-900: #0d2218;
@@ -131,6 +132,68 @@
   .loading-leaf { font-size: 48px; animation: spin 2s linear infinite; }
   @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   .loading-text { color: var(--green-200); font-size: 15px; letter-spacing: 0.5px; }
+
+  /* ── AUTH SCREEN ── */
+  #auth-screen {
+    display: none;
+    position: fixed; inset: 0;
+    background: var(--green-900);
+    z-index: 9998;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+  }
+  #auth-screen.visible { display: flex; }
+  .auth-box {
+    background: var(--green-800);
+    border-radius: 20px;
+    padding: 40px 36px;
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+  .auth-leaf { font-size: 52px; margin-bottom: 12px; display: block; }
+  .auth-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    color: var(--green-100);
+    margin-bottom: 6px;
+  }
+  .auth-sub { font-size: 13px; color: var(--green-300); margin-bottom: 28px; line-height: 1.5; }
+  .btn-google {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: white; color: #3c4043;
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    border: none; border-radius: 10px; padding: 13px 22px;
+    cursor: pointer; width: 100%; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: box-shadow 0.15s, background 0.15s;
+  }
+  .btn-google:hover { background: #f8f8f8; box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
+  .btn-google svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .auth-error { font-size: 13px; color: var(--red); margin-top: 14px; min-height: 18px; }
+  .auth-user-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 20px;
+    background: rgba(255,255,255,0.1);
+    cursor: pointer; transition: background 0.15s;
+    margin-left: 8px;
+  }
+  .auth-user-bar:hover { background: rgba(255,255,255,0.18); }
+  .auth-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    object-fit: cover; border: 1.5px solid var(--green-300);
+  }
+  .auth-avatar-placeholder {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--green-500); display: flex; align-items: center;
+    justify-content: center; font-size: 13px; color: white; font-weight: 500;
+    border: 1.5px solid var(--green-300);
+  }
+  .auth-display-name { font-size: 12px; color: var(--green-200); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-signout-tip { font-size: 10px; color: var(--green-400); }
 
   .page { display: none; }
   .page.active { display: block; }
@@ -374,6 +437,26 @@
 </head>
 <body>
 
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <span class="auth-leaf">🌿</span>
+    <div class="auth-title">Plant Stock Tracker</div>
+    <div class="auth-sub">Sign in to access your plant inventory and sync data across devices.</div>
+    <button class="btn-google" onclick="window._signInWithGoogle()">
+      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        <path fill="none" d="M0 0h48v48H0z"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
 <!-- LOADING OVERLAY -->
 <div id="loading-overlay">
   <div class="loading-leaf">🌿</div>
@@ -401,6 +484,14 @@
       <div id="sync-indicator" class="status-online" title="Database sync status">
         <div class="sync-dot"></div>
         <span id="sync-label">Live</span>
+      </div>
+      <div class="auth-user-bar" id="auth-user-bar" onclick="window._signOut()" title="Sign out" style="display:none;">
+        <div class="auth-avatar-placeholder" id="auth-avatar-placeholder">?</div>
+        <img class="auth-avatar" id="auth-avatar-img" src="" alt="" style="display:none;" />
+        <div>
+          <div class="auth-display-name" id="auth-display-name"></div>
+          <div class="auth-signout-tip">Sign out</div>
+        </div>
       </div>
     </div>
   </div>
@@ -640,6 +731,13 @@ import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, set, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyDzWFbr4ltIBUZqbv2soS1FweHHjQr92O0",
@@ -651,89 +749,151 @@ const firebaseConfig = {
   databaseURL:       "https://plant-tracker-9d42c-default-rtdb.firebaseio.com"
 };
 
-const app      = initializeApp(firebaseConfig);
-const db       = getDatabase(app);
+const app       = initializeApp(firebaseConfig);
+const db        = getDatabase(app);
+const auth      = getAuth(app);
+const provider  = new GoogleAuthProvider();
 const STATE_REF = ref(db, 'plantTracker/state');
+
+// ── Auth helpers exposed to classic script ──────
+window._signInWithGoogle = async function() {
+  const errEl = document.getElementById('auth-error');
+  if (errEl) errEl.textContent = '';
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (err) {
+    console.error('Sign-in error:', err);
+    if (errEl) errEl.textContent = 'Sign-in failed — please try again.';
+  }
+};
+
+window._signOut = async function() {
+  if (!confirm('Sign out of Plant Stock Tracker?')) return;
+  await signOut(auth);
+};
+
+// ── Auth state observer ─────────────────────────
+let _dbListenerActive = false;
+
+onAuthStateChanged(auth, (user) => {
+  const authScreen  = document.getElementById('auth-screen');
+  const userBar     = document.getElementById('auth-user-bar');
+  const avatarImg   = document.getElementById('auth-avatar-img');
+  const avatarPh    = document.getElementById('auth-avatar-placeholder');
+  const displayName = document.getElementById('auth-display-name');
+
+  if (user) {
+    // Hide auth screen, show app
+    if (authScreen) authScreen.classList.remove('visible');
+
+    // Populate user bar
+    if (userBar)     userBar.style.display = 'flex';
+    if (displayName) displayName.textContent = user.displayName || user.email || 'User';
+    if (user.photoURL && avatarImg && avatarPh) {
+      avatarImg.src = user.photoURL;
+      avatarImg.style.display = 'block';
+      avatarPh.style.display  = 'none';
+    } else if (avatarPh) {
+      avatarPh.textContent    = (user.displayName || user.email || '?')[0].toUpperCase();
+      avatarPh.style.display  = 'flex';
+      if (avatarImg) avatarImg.style.display = 'none';
+    }
+
+    // Start DB listener only once
+    if (!_dbListenerActive) {
+      _dbListenerActive = true;
+      _startDbListener();
+    }
+  } else {
+    // Show auth screen, hide app content
+    if (authScreen) authScreen.classList.add('visible');
+    if (userBar)    userBar.style.display = 'none';
+
+    // Hide loading overlay if visible
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+      setTimeout(() => { overlay.style.display = 'none'; }, 450);
+    }
+  }
+});
+
+// ── DB listener (only runs when authenticated) ──
+function _startDbListener() {
+  onValue(STATE_REF, (snapshot) => {
+    _setSyncStatus('online');
+
+    if (snapshot.exists()) {
+      const remote = snapshot.val();
+      const toArr  = v => !v ? [] : Array.isArray(v) ? v : Object.values(v);
+
+      remote.plantings  = toArr(remote.plantings).map(p => {
+        if (!p.species) p.species = {};
+        if (!p.yardId)  p.yardId  = 'depot';
+        return p;
+      });
+      remote.orders    = toArr(remote.orders);
+      remote.transfers = toArr(remote.transfers);
+      remote.archives  = toArr(remote.archives).map(arc => {
+        arc.plantings  = toArr(arc.plantings);
+        arc.orders     = toArr(arc.orders);
+        arc.transfers  = toArr(arc.transfers);
+        arc.sites      = toArr(arc.sites);
+        arc.groups     = toArr(arc.groups);
+        return arc;
+      });
+      remote.sites     = toArr(remote.sites);
+      remote.groups    = toArr(remote.groups);
+
+      if (!remote.corrections)      remote.corrections      = Object.assign({}, window._DEFAULT_CORRECTIONS);
+      if (!remote.startingSupplier) remote.startingSupplier = Object.assign({}, remote.supplier);
+
+      window.appState = remote;
+    } else {
+      window._fbSave(window.appState);
+    }
+
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay && !overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+      setTimeout(() => { overlay.style.display = 'none'; }, 450);
+    }
+
+    if (typeof window._reRenderActive === 'function') {
+      window._reRenderActive();
+    }
+
+  }, (error) => {
+    console.error('Firebase read error:', error);
+    _setSyncStatus('error');
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+      setTimeout(() => { overlay.style.display = 'none'; }, 450);
+    }
+    if (typeof window._appToast === 'function') {
+      window._appToast('⚠ Could not connect to database');
+    }
+  });
+}
 
 // ── Expose save function to the classic script ──
 window._fbSave = function(stateObj) {
   _setSyncStatus('syncing');
   set(STATE_REF, stateObj)
-    .then(()    => _setSyncStatus('online'))
-    .catch(err  => {
+    .then(()   => _setSyncStatus('online'))
+    .catch(err => {
       console.error('Firebase write error:', err);
       _setSyncStatus('error');
       window._appToast('⚠ Save failed — check connection');
     });
 };
 
-// ── Listen for real-time changes from any device ──
-onValue(STATE_REF, (snapshot) => {
-  _setSyncStatus('online');
-
-  if (snapshot.exists()) {
-    const remote = snapshot.val();
-
-    // Normalise every field that should be an array
-    // Firebase can return arrays as keyed objects
-    const toArr = v => !v ? [] : Array.isArray(v) ? v : Object.values(v);
-
-    remote.plantings  = toArr(remote.plantings).map(p => {
-      if (!p.species) p.species = {};
-      if (!p.yardId)  p.yardId  = 'depot';
-      return p;
-    });
-    remote.orders    = toArr(remote.orders);
-    remote.transfers = toArr(remote.transfers);
-    remote.archives  = toArr(remote.archives).map(arc => {
-      arc.plantings  = toArr(arc.plantings);
-      arc.orders     = toArr(arc.orders);
-      arc.transfers  = toArr(arc.transfers);
-      arc.sites      = toArr(arc.sites);
-      arc.groups     = toArr(arc.groups);
-      return arc;
-    });
-    remote.sites     = toArr(remote.sites);
-    remote.groups    = toArr(remote.groups);
-
-    if (!remote.corrections)      remote.corrections      = Object.assign({}, window._DEFAULT_CORRECTIONS);
-    if (!remote.startingSupplier) remote.startingSupplier = Object.assign({}, remote.supplier);
-
-    window.appState = remote;
-  } else {
-    window._fbSave(window.appState);
-  }
-
-  const overlay = document.getElementById('loading-overlay');
-  if (overlay && !overlay.classList.contains('hidden')) {
-    overlay.classList.add('hidden');
-    setTimeout(() => { overlay.style.display = 'none'; }, 450);
-  }
-
-  if (typeof window._reRenderActive === 'function') {
-    window._reRenderActive();
-  }
-
-}, (error) => {
-  console.error('Firebase read error:', error);
-  _setSyncStatus('error');
-  const overlay = document.getElementById('loading-overlay');
-  if (overlay) {
-    overlay.classList.add('hidden');
-    setTimeout(() => { overlay.style.display = 'none'; }, 450);
-  }
-  if (typeof window._appToast === 'function') {
-    window._appToast('⚠ Could not connect to database');
-  }
-});
-
-// ── Sync status indicator ──────────────────────
-// Uses prefixed class names to avoid the empty-string classList crash
+// ── Sync status indicator ───────────────────────
 function _setSyncStatus(status) {
   const el    = document.getElementById('sync-indicator');
   const label = document.getElementById('sync-label');
   if (!el || !label) return;
-  // Remove all status classes then add the correct one
   el.classList.remove('status-syncing', 'status-online', 'status-error');
   el.classList.add('status-' + status);
   label.textContent = status === 'syncing' ? 'Saving…'
@@ -1104,7 +1264,7 @@ function renderHistory() {
     card.className='order-card';
     const pills=Object.entries(order.items).map(([id,qty])=>{
       const p=PLANTS.find(x=>x.id===id);
-      return `<span class="order-pill"><span class="qty-bold">${qty.toLocaleString()}</span> ${p?p.name:id}</span>`;
+      return `<span class="order-pill"><span class="qty-bold">${qty.toLocaleString()}</span> ${p?p.name:id}${p?` <em style="font-style:italic;opacity:0.7;font-size:11px;">${p.sci}</em>`:''}</span>`;
     }).join('');
     card.innerHTML=`
       <div class="order-meta">
@@ -1478,7 +1638,7 @@ function renderArchives() {
     const speciesPills=PLANTS.map(p=>{
       const start=arc.startingSupplier?.[p.id]??0;
       const final=arc.finalSupplier?.[p.id]??0;
-      return `<span class="archive-pill"><strong>${p.name}</strong> ${Math.max(0,start-final).toLocaleString()} used of ${start.toLocaleString()}</span>`;
+      return `<span class="archive-pill"><strong>${p.name}</strong> <em style="font-size:11px;color:var(--text-light);font-weight:400;">${p.sci}</em> — ${Math.max(0,start-final).toLocaleString()} used of ${start.toLocaleString()}</span>`;
     }).join('');
 
     const plantingsSorted=[...(arc.plantings||[])].sort((a,b)=>b.date.localeCompare(a.date));
@@ -1544,6 +1704,7 @@ function renderArchives() {
         <div style="flex:1;"><h3>${arc.name}</h3>
           <div class="archive-dates">${startFmt} → ${endFmt} · ${(arc.plantings||[]).length} planting events · ${(arc.orders||[]).length} orders</div>
         </div>
+        <button class="btn btn-danger" style="font-size:11px;padding:5px 10px;margin-right:8px;z-index:1;position:relative;flex-shrink:0;" onclick="event.stopPropagation();deleteArchive(${arcIdx})">Delete</button>
         <div class="archive-chevron">&#8964;</div>
       </div>
       <div class="archive-stats">
@@ -1591,6 +1752,15 @@ function renderArchives() {
 }
 
 function toggleArchive(uid) { document.getElementById(uid).classList.toggle('open'); }
+
+function deleteArchive(idx) {
+  const state=getState();
+  if(!confirm(`Delete the archive "${state.archives[idx]?.name}"? This cannot be undone.`)) return;
+  state.archives.splice(idx,1);
+  saveState();
+  renderArchives();
+  toast('Archive deleted');
+}
 
 function switchArcTab(uid,panel) {
   const panels=['plantings','sites','groups'];
