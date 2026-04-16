@@ -787,6 +787,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
@@ -812,10 +814,18 @@ window._signInWithGoogle = async function() {
   const errEl = document.getElementById('auth-error');
   if (errEl) errEl.textContent = '';
   try {
+    // Try popup first; fall back to redirect on any failure
     await signInWithPopup(auth, provider);
   } catch (err) {
-    console.error('Sign-in error:', err);
-    if (errEl) errEl.textContent = 'Sign-in failed — please try again.';
+    console.warn('Popup sign-in failed (' + err.code + '), trying redirect…');
+    // Show the error code briefly so it can be diagnosed
+    if (errEl) errEl.textContent = 'Popup blocked (' + err.code + ') — redirecting…';
+    try {
+      await signInWithRedirect(auth, provider);
+    } catch (redirectErr) {
+      console.error('Redirect sign-in error:', redirectErr);
+      if (errEl) errEl.textContent = 'Sign-in failed (' + redirectErr.code + ') — ' + (redirectErr.message || 'please try again.');
+    }
   }
 };
 
@@ -823,6 +833,13 @@ window._signOut = async function() {
   if (!confirm('Sign out of Plant Stock Tracker?')) return;
   await signOut(auth);
 };
+
+// ── Handle redirect result on page load ─────────
+getRedirectResult(auth).catch(err => {
+  console.error('Redirect result error:', err);
+  const errEl = document.getElementById('auth-error');
+  if (errEl) errEl.textContent = 'Sign-in failed — ' + (err.message || 'please try again.');
+});
 
 // ── Auth state observer ─────────────────────────
 let _dbListenerActive = false;
