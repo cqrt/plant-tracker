@@ -195,6 +195,40 @@
   .auth-display-name { font-size: 12px; color: var(--green-200); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .auth-signout-tip { font-size: 10px; color: var(--green-400); }
 
+  /* ── USER DROPDOWN ── */
+  .user-menu-wrap { position: relative; margin-left: 8px; }
+  .user-menu-wrap .auth-user-bar { margin-left: 0; }
+  .user-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: white;
+    border: 1px solid var(--cream-300);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    min-width: 190px;
+    z-index: 500;
+    overflow: hidden;
+    padding: 6px 0;
+  }
+  .user-menu-wrap.open .user-dropdown { display: block; }
+  .user-dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: background 0.12s;
+    border: none; background: none; width: 100%; text-align: left;
+  }
+  .user-dropdown-item:hover { background: var(--cream-100); }
+  .user-dropdown-item .dd-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+  .user-dropdown-divider { border: none; border-top: 1px solid var(--cream-200); margin: 4px 0; }
+  .user-dropdown-item.danger { color: var(--red); }
+  .user-dropdown-item.danger:hover { background: var(--red-light); }
+
   .page { display: none; }
   .page.active { display: block; }
 
@@ -493,19 +527,26 @@
       <button class="nav-tab" onclick="showPage('history')">History</button>
       <button class="nav-tab" onclick="showPage('plantings')">Plantings</button>
       <button class="nav-tab" onclick="showPage('sites')">Sites</button>
-      <button class="nav-tab" onclick="showPage('archives')">Archives</button>
-      <button class="nav-tab" onclick="showPage('settings')">Settings</button>
-      <button class="btn-new-season" onclick="openSeasonModal()">&#8635; New Season</button>
       <div id="sync-indicator" class="status-online" title="Database sync status">
         <div class="sync-dot"></div>
         <span id="sync-label">Live</span>
       </div>
-      <div class="auth-user-bar" id="auth-user-bar" onclick="window._signOut()" title="Sign out" style="display:none;">
-        <div class="auth-avatar-placeholder" id="auth-avatar-placeholder">?</div>
-        <img class="auth-avatar" id="auth-avatar-img" src="" alt="" style="display:none;" />
-        <div>
-          <div class="auth-display-name" id="auth-display-name"></div>
-          <div class="auth-signout-tip">Sign out</div>
+      <!-- User menu dropdown -->
+      <div class="user-menu-wrap" id="user-menu-wrap" style="display:none;">
+        <div class="auth-user-bar" id="auth-user-bar" onclick="toggleUserMenu()" title="Menu">
+          <div class="auth-avatar-placeholder" id="auth-avatar-placeholder">?</div>
+          <img class="auth-avatar" id="auth-avatar-img" src="" alt="" style="display:none;" />
+          <div>
+            <div class="auth-display-name" id="auth-display-name"></div>
+            <div class="auth-signout-tip">▾ Menu</div>
+          </div>
+        </div>
+        <div class="user-dropdown" id="user-dropdown">
+          <button class="user-dropdown-item" onclick="closeUserMenu();showPage('archives')"><span class="dd-icon">📦</span> Archives</button>
+          <button class="user-dropdown-item" onclick="closeUserMenu();showPage('settings')"><span class="dd-icon">⚙️</span> Settings</button>
+          <button class="user-dropdown-item" onclick="closeUserMenu();openSeasonModal()"><span class="dd-icon">🔄</span> New Season</button>
+          <hr class="user-dropdown-divider" />
+          <button class="user-dropdown-item danger" onclick="closeUserMenu();window._signOut()"><span class="dd-icon">↩</span> Sign out</button>
         </div>
       </div>
     </div>
@@ -846,7 +887,7 @@ let _dbListenerActive = false;
 
 onAuthStateChanged(auth, (user) => {
   const authScreen  = document.getElementById('auth-screen');
-  const userBar     = document.getElementById('auth-user-bar');
+  const menuWrap    = document.getElementById('user-menu-wrap');
   const avatarImg   = document.getElementById('auth-avatar-img');
   const avatarPh    = document.getElementById('auth-avatar-placeholder');
   const displayName = document.getElementById('auth-display-name');
@@ -855,8 +896,8 @@ onAuthStateChanged(auth, (user) => {
     // Hide auth screen, show app
     if (authScreen) authScreen.classList.remove('visible');
 
-    // Populate user bar
-    if (userBar)     userBar.style.display = 'flex';
+    // Populate & show user menu
+    if (menuWrap)    menuWrap.style.display = 'block';
     if (displayName) displayName.textContent = user.displayName || user.email || 'User';
     if (user.photoURL && avatarImg && avatarPh) {
       avatarImg.src = user.photoURL;
@@ -876,7 +917,7 @@ onAuthStateChanged(auth, (user) => {
   } else {
     // Show auth screen, hide app content
     if (authScreen) authScreen.classList.add('visible');
-    if (userBar)    userBar.style.display = 'none';
+    if (menuWrap)   menuWrap.style.display = 'none';
 
     // Hide loading overlay if visible
     const overlay = document.getElementById('loading-overlay');
@@ -1109,6 +1150,19 @@ function showPage(name) {
   };
   if (renders[name]) renders[name]();
 }
+
+// ── USER DROPDOWN ─────────────────────────────────
+function toggleUserMenu() {
+  document.getElementById('user-menu-wrap').classList.toggle('open');
+}
+function closeUserMenu() {
+  document.getElementById('user-menu-wrap').classList.remove('open');
+}
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('user-menu-wrap');
+  if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+});
 
 function updateSeasonLabel() {
   const state = getState();
