@@ -482,6 +482,45 @@
     .nav-tab { font-size:12px; padding:10px 10px; }
     .nav-brand h1 { font-size:15px; }
   }
+
+  /* ── YARD COUNT SCRATCHPAD ── */
+  .yardcount-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 90px 90px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--cream-100);
+    border: 1px solid var(--cream-300);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  @media(max-width:520px) {
+    .yardcount-row { grid-template-columns: 1fr 76px 76px 70px; gap: 7px; padding: 10px 10px; }
+  }
+  .yardcount-sys-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--text-mid);
+    text-align: right;
+  }
+  .yardcount-row input[type="number"] {
+    width: 80px; text-align: right;
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--amber);
+    border-color: var(--green-200); background: white;
+    padding: 6px 8px;
+  }
+  .yardcount-diff {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; color: var(--green-700);
+    text-align: right; font-weight: 500;
+  }
+  .yardcount-diff.zero { color: var(--text-light); font-size: 16px; font-weight: 400; }
+  .yardcount-diff.over { color: var(--red); font-size: 13px; font-weight: 500; }
+  .yc-col-head {
+    font-size: 10px; font-weight: 500; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--text-light);
+  }
 </style>
 </head>
 <body>
@@ -527,6 +566,7 @@
       <button class="nav-tab" onclick="showPage('history')">History</button>
       <button class="nav-tab" onclick="showPage('plantings')">Plantings</button>
       <button class="nav-tab" onclick="showPage('sites')">Sites</button>
+      <button class="nav-tab" onclick="showPage('yardcount')">Yard Count</button>
       <div id="sync-indicator" class="status-online" title="Database sync status">
         <div class="sync-dot"></div>
         <span id="sync-label">Live</span>
@@ -690,6 +730,50 @@
     <div class="form-card" style="margin-top:8px;">
       <p class="form-section-title">Group totals</p>
       <table class="stock-table" id="group-table"></table>
+    </div>
+  </div>
+
+  <!-- YARD COUNT -->
+  <div id="page-yardcount" class="page">
+    <p class="section-title">Yard Count</p>
+    <p class="section-sub">Count plants physically present at Queens Park — missing plants are logged as a planting automatically</p>
+    <div class="form-card">
+      <p class="form-section-title">Planting details</p>
+      <div class="form-meta">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" id="yc-date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Site</label>
+          <select id="yc-site"><option value="">— select site —</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Group</label>
+          <select id="yc-group"><option value="">— select group —</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes (optional)</label>
+          <input type="text" id="yc-notes" placeholder="e.g. Morning count" />
+        </div>
+      </div>
+      <p class="form-section-title">Count plants present</p>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Enter how many plants you can see for each species. The <strong style="color:var(--green-700);">Missing</strong> column shows what will be logged as planted.</p>
+      <div style="display:grid;grid-template-columns:1fr 90px 90px 90px;gap:6px 12px;padding:0 14px 6px;margin-bottom:2px;">
+        <div class="yc-col-head">Species</div>
+        <div class="yc-col-head" style="text-align:right;">In depot</div>
+        <div class="yc-col-head" style="text-align:right;">Counted</div>
+        <div class="yc-col-head" style="text-align:right;">Missing</div>
+      </div>
+      <div id="yardcount-grid"></div>
+      <hr class="divider">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:12px;color:var(--text-light);">Total missing plants to log</div>
+          <div style="font-family:'Playfair Display',serif;font-size:24px;color:var(--green-700);" id="yc-total-diff">0</div>
+        </div>
+        <button class="btn btn-primary" onclick="submitYardCount()">&#10003; Log Missing Plants</button>
+      </div>
     </div>
   </div>
 
@@ -1119,13 +1203,14 @@ window._reRenderActive = function() {
   if (!activePage) return;
   const name = activePage.id.replace('page-', '');
   const renders = {
-    dashboard: renderDashboard,
-    order:     renderOrderForm,
-    history:   renderHistory,
-    plantings: renderPlantings,
-    sites:     renderSites,
-    archives:  renderArchives,
-    settings:  renderSettings,
+    dashboard:  renderDashboard,
+    order:      renderOrderForm,
+    history:    renderHistory,
+    plantings:  renderPlantings,
+    sites:      renderSites,
+    yardcount:  renderYardCount,
+    archives:   renderArchives,
+    settings:   renderSettings,
   };
   if (renders[name]) renders[name]();
 };
@@ -1140,13 +1225,14 @@ function showPage(name) {
       t.classList.add('active');
   });
   const renders = {
-    dashboard: renderDashboard,
-    order:     renderOrderForm,
-    history:   renderHistory,
-    plantings: renderPlantings,
-    sites:     renderSites,
-    archives:  renderArchives,
-    settings:  renderSettings,
+    dashboard:  renderDashboard,
+    order:      renderOrderForm,
+    history:    renderHistory,
+    plantings:  renderPlantings,
+    sites:      renderSites,
+    yardcount:  renderYardCount,
+    archives:   renderArchives,
+    settings:   renderSettings,
   };
   if (renders[name]) renders[name]();
 }
@@ -2204,6 +2290,131 @@ function deleteGroup(idx) {
   saveState();
   toast(`Group "${g.name}" deleted`);
   renderGroupsMgmt();
+}
+
+// ── YARD COUNT ────────────────────────────────────
+function renderYardCount() {
+  const state = getState();
+  // Populate site & group dropdowns
+  document.getElementById('yc-site').innerHTML =
+    '<option value="">— select site —</option>' +
+    state.sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('yc-group').innerHTML =
+    '<option value="">— select group —</option>' +
+    state.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  // Default date to today on first open
+  const dateEl = document.getElementById('yc-date');
+  if (dateEl && !dateEl.value)
+    dateEl.value = new Date().toISOString().split('T')[0];
+  renderYardCountGrid();
+}
+
+function renderYardCountGrid() {
+  const state = getState();
+  const grid  = document.getElementById('yardcount-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  getPlants().forEach(p => {
+    const inDepot = state.depot[p.id] || 0;
+    const row     = document.createElement('div');
+    row.className = 'yardcount-row';
+    row.innerHTML = `
+      <div>
+        <div class="plant-name">${p.name}</div>
+        <div style="font-size:11px;color:var(--text-light);font-style:italic;margin-top:1px;">${p.sci}</div>
+      </div>
+      <div class="yardcount-sys-val">${inDepot.toLocaleString()}</div>
+      <input type="number" min="0" step="1" value="" placeholder="—"
+        id="yc-${p.id}" oninput="updateYardCountDiff()" />
+      <div class="yardcount-diff zero" id="yc-diff-${p.id}">—</div>
+    `;
+    grid.appendChild(row);
+  });
+  updateYardCountDiff();
+}
+
+function updateYardCountDiff() {
+  const state    = getState();
+  let   totalDiff = 0;
+  getPlants().forEach(p => {
+    const inDepot = state.depot[p.id] || 0;
+    const raw     = document.getElementById('yc-' + p.id)?.value;
+    const diffEl  = document.getElementById('yc-diff-' + p.id);
+    if (!diffEl) return;
+    if (raw === '' || raw === undefined || raw === null) {
+      diffEl.className = 'yardcount-diff zero';
+      diffEl.textContent = '—';
+      return;
+    }
+    const counted = Math.max(0, parseInt(raw) || 0);
+    const diff    = inDepot - counted;
+    if (diff > 0) {
+      diffEl.className   = 'yardcount-diff';
+      diffEl.textContent = diff.toLocaleString();
+      totalDiff += diff;
+    } else if (diff === 0) {
+      diffEl.className   = 'yardcount-diff zero';
+      diffEl.textContent = '0';
+    } else {
+      diffEl.className   = 'yardcount-diff over';
+      diffEl.textContent = '⚠ +' + Math.abs(diff);
+    }
+  });
+  const el = document.getElementById('yc-total-diff');
+  if (el) el.textContent = totalDiff.toLocaleString();
+}
+
+function submitYardCount() {
+  const state   = getState();
+  const date    = document.getElementById('yc-date').value;
+  const siteId  = document.getElementById('yc-site').value;
+  const groupId = document.getElementById('yc-group').value;
+  const notes   = document.getElementById('yc-notes').value.trim();
+  if (!date)    { toast('Please select a date');  return; }
+  if (!siteId)  { toast('Please select a site');  return; }
+  if (!groupId) { toast('Please select a group'); return; }
+
+  const species  = {};
+  let   count    = 0;
+  let   hasOver  = false;
+  let   hasEntry = false;
+
+  getPlants().forEach(p => {
+    const raw = document.getElementById('yc-' + p.id)?.value;
+    if (raw === '' || raw === undefined || raw === null) return;
+    hasEntry = true;
+    const inDepot = state.depot[p.id] || 0;
+    const counted = Math.max(0, parseInt(raw) || 0);
+    if (counted > inDepot) { hasOver = true; return; }
+    const diff = inDepot - counted;
+    if (diff > 0) { species[p.id] = diff; count += diff; }
+  });
+
+  if (!hasEntry) { toast('Enter at least one count'); return; }
+  if (hasOver)   { toast('⚠ One or more counts exceed depot stock — please recheck'); return; }
+  if (count < 1) { toast('No missing plants found — all counts match or exceed depot stock'); return; }
+
+  // Deduct missing plants from depot and log a planting record
+  getPlants().forEach(p => {
+    const qty = species[p.id] || 0;
+    if (qty > 0) state.depot[p.id] = (state.depot[p.id] || 0) - qty;
+  });
+  state.plantings.unshift({
+    id: Date.now(), date, count, species,
+    yardId: 'depot', siteId, groupId,
+    notes: notes || 'Via yard count'
+  });
+  saveState();
+
+  const site = state.sites.find(s => s.id === siteId);
+  toast(`✓ Logged ${count.toLocaleString()} missing plants from Queens Park at ${site ? site.name : siteId}`);
+
+  // Reset all counted inputs
+  getPlants().forEach(p => {
+    const el = document.getElementById('yc-' + p.id);
+    if (el) el.value = '';
+  });
+  updateYardCountDiff();
 }
 </script>
 </body>
