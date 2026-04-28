@@ -465,6 +465,8 @@
   .btn-sm-primary:hover { background:var(--green-600); }
   .btn-sm-danger { background:var(--red-light); color:var(--red); border:1px solid #f0c0c0; }
   .btn-sm-danger:hover { background:#f9d9d9; }
+  .btn-sm-muted { background:var(--cream-200); color:var(--text-light); border:1px solid var(--cream-300); }
+  .btn-sm-muted:hover { background:var(--cream-300); }
 
   .danger-zone { border:1.5px solid #f0c0c0; border-radius:14px; padding:20px 22px; background:var(--red-light); margin-top:20px; }
   .danger-zone h3 { font-family:'Playfair Display',serif; font-size:16px; color:var(--red); margin-bottom:6px; }
@@ -1137,11 +1139,14 @@ const DEFAULT_PLANTS = [
   { id: 'flax_2lt',            name: 'Phormium',    sci: 'P. tenax 2lt',         traySize: 6  },
 ];
 
-// getPlants() returns the live configurable list from appState,
-// falling back to DEFAULT_PLANTS before Firebase loads.
+// getPlants() returns the full list including inactive; use for settings/admin/data integrity.
 function getPlants() {
   return (window.appState && window.appState.plants && window.appState.plants.length)
     ? window.appState.plants : DEFAULT_PLANTS;
+}
+// getActivePlants() returns only species with active !== false; use in all operational views.
+function getActivePlants() {
+  return getPlants().filter(p => p.active !== false);
 }
 
 const DEFAULT_SUPPLIER_QTY = { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 };
@@ -1350,7 +1355,7 @@ function renderStockTable(tableId, stockKey, maxQty) {
   const table = document.getElementById(tableId);
   table.innerHTML = `<thead><tr><th>Plant</th><th>Trays</th><th>Qty</th></tr></thead>`;
   const tbody = document.createElement('tbody');
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const qty = state[stockKey][p.id]||0;
     const w   = maxQty>0?pct(qty,maxQty):0;
     const tr  = document.createElement('tr');
@@ -1374,7 +1379,7 @@ function renderTransferGrid() {
   const grid  = document.getElementById('transfer-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const avail = state.depot[p.id] || 0;
     const row   = document.createElement('div');
     row.className = 'transfer-row';
@@ -1393,7 +1398,7 @@ function renderTransferGrid() {
 
 function updateTransferTotal() {
   let total=0;
-  getPlants().forEach(p=>{ total+=parseInt(document.getElementById('tr-'+p.id)?.value||0)||0; });
+  getActivePlants().forEach(p=>{ total+=parseInt(document.getElementById('tr-'+p.id)?.value||0)||0; });
   const el=document.getElementById('transfer-running-total');
   if(el) el.textContent=total.toLocaleString();
 }
@@ -1431,7 +1436,7 @@ function renderOrderForm() {
   }
   const grid = document.getElementById('order-form-grid');
   grid.innerHTML = '';
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const avail = state.supplier[p.id] || 0;
     const grp   = document.createElement('div');
     grp.className = 'form-group';
@@ -1461,7 +1466,7 @@ function updateOrderHints(id, avail) {
 
 function updateRunningTotal() {
   let total=0;
-  getPlants().forEach(p=>{ total+=parseInt(document.getElementById('qty-'+p.id)?.value||0)||0; });
+  getActivePlants().forEach(p=>{ total+=parseInt(document.getElementById('qty-'+p.id)?.value||0)||0; });
   document.getElementById('order-running-total').textContent=total.toLocaleString();
 }
 
@@ -1558,7 +1563,7 @@ function renderSpeciesGrid() {
   const grid  = document.getElementById('planting-species-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const avail = (state[_selectedYard]?.[p.id]) || 0;
     const row   = document.createElement('div');
     row.className = 'species-input-row';
@@ -1586,7 +1591,7 @@ function updateSpeciesHint(id, avail) {
     hint.className='avail-note'; hint.textContent=`${avail.toLocaleString()} available`;
   }
   let total=0;
-  getPlants().forEach(p=>{ total+=parseInt(document.getElementById('sp-'+p.id)?.value||0)||0; });
+  getActivePlants().forEach(p=>{ total+=parseInt(document.getElementById('sp-'+p.id)?.value||0)||0; });
   const el=document.getElementById('planting-running-total');
   if(el) el.textContent=total.toLocaleString();
 }
@@ -1595,7 +1600,7 @@ function renderPlantings() {
   const state=getState();
   document.getElementById('planting-site').innerHTML =
     '<option value="">— select site —</option>'+
-    state.sites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    state.sites.filter(s=>s.active!==false).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   document.getElementById('planting-group').innerHTML=
     '<option value="">— select group —</option>'+
     state.groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
@@ -1711,6 +1716,7 @@ function renderSites() {
   const grid=document.getElementById('sites-grid');
   grid.innerHTML='';
   state.sites.forEach((site,idx)=>{
+    if (site.active === false) return;  // skip hidden sites
     const actual   =siteActual(site.id);
     const pctDone  =pct(actual,site.expected);
     const barClass =pctDone>=100?'done':pctDone>0?'part':'none';
@@ -2101,14 +2107,22 @@ function renderSpeciesMgmt() {
   container.innerHTML = '';
   const table = document.createElement('table');
   table.className = 'mgmt-table';
-  table.innerHTML = '<thead><tr><th>Common name</th><th>Scientific / label</th><th>Tray size</th><th></th></tr></thead>';
+  table.innerHTML = '<thead><tr><th>Common name</th><th>Scientific / label</th><th>Tray size</th><th>Visible</th><th></th></tr></thead>';
   const tbody = document.createElement('tbody');
   plants.forEach((p, idx) => {
+    const isActive = p.active !== false;
     const tr = document.createElement('tr');
+    if (!isActive) tr.style.opacity = '0.5';
     tr.innerHTML = `
       <td><input type="text" value="${p.name}" id="sp-edit-name-${idx}" style="width:100%;" /></td>
       <td><input type="text" value="${p.sci}"  id="sp-edit-sci-${idx}"  style="width:100%;" /></td>
       <td><input type="number" value="${p.traySize}" id="sp-edit-tray-${idx}" min="1" style="width:70px;" /></td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm ${isActive?'btn-sm-primary':'btn-sm-muted'}"
+          onclick="toggleSpeciesActive(${idx})" style="min-width:76px;">
+          ${isActive?'● Visible':'○ Hidden'}
+        </button>
+      </td>
       <td style="white-space:nowrap;">
         <button class="btn-sm btn-sm-primary" onclick="saveSpecies(${idx})" style="margin-right:4px;">Save</button>
         <button class="btn-sm btn-sm-danger"  onclick="deleteSpecies(${idx})">✕</button>
@@ -2198,15 +2212,23 @@ function renderSitesMgmt() {
   container.innerHTML = '';
   const table = document.createElement('table');
   table.className = 'mgmt-table';
-  table.innerHTML = '<thead><tr><th>Site name</th><th>Expected</th><th>Planted</th><th></th></tr></thead>';
+  table.innerHTML = '<thead><tr><th>Site name</th><th>Expected</th><th>Planted</th><th>Visible</th><th></th></tr></thead>';
   const tbody = document.createElement('tbody');
   state.sites.forEach((site, idx) => {
-    const planted = siteActual(site.id);
+    const planted   = siteActual(site.id);
+    const isActive  = site.active !== false;
     const tr = document.createElement('tr');
+    if (!isActive) tr.style.opacity = '0.5';
     tr.innerHTML = `
       <td><input type="text" value="${site.name}" id="site-edit-name-${idx}" style="width:100%;" /></td>
       <td><input type="number" value="${site.expected}" id="site-edit-exp-${idx}" min="0" style="width:90px;" /></td>
       <td style="color:var(--green-700);font-weight:500;">${planted.toLocaleString()}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm ${isActive?'btn-sm-primary':'btn-sm-muted'}"
+          onclick="toggleSiteActive(${idx})" style="min-width:76px;">
+          ${isActive?'● Visible':'○ Hidden'}
+        </button>
+      </td>
       <td style="white-space:nowrap;">
         <button class="btn-sm btn-sm-primary" onclick="saveSite(${idx})" style="margin-right:4px;">Save</button>
         <button class="btn-sm btn-sm-danger"  onclick="deleteSite(${idx})" ${planted>0?'disabled title="Has plantings"':''}>✕</button>
@@ -2319,13 +2341,37 @@ function deleteGroup(idx) {
   renderGroupsMgmt();
 }
 
+// ── ACTIVE/HIDDEN TOGGLES ─────────────────────────
+function toggleSpeciesActive(idx) {
+  const plants = getPlants();
+  plants[idx].active = plants[idx].active === false;  // false→true, true→false
+  getState().plants  = plants;
+  saveState();
+  toast(plants[idx].active === false
+    ? `"${plants[idx].name}" hidden — won't appear in forms or tables`
+    : `"${plants[idx].name}" is now visible`);
+  renderSpeciesMgmt();
+  window._reRenderActive();
+}
+
+function toggleSiteActive(idx) {
+  const state = getState();
+  state.sites[idx].active = state.sites[idx].active === false;  // false→true, true→false
+  saveState();
+  toast(state.sites[idx].active === false
+    ? `"${state.sites[idx].name}" hidden — won't appear in site dropdowns`
+    : `"${state.sites[idx].name}" is now visible`);
+  renderSitesMgmt();
+  window._reRenderActive();
+}
+
 // ── YARD COUNT ────────────────────────────────────
 function renderYardCount() {
   const state = getState();
   // Populate site & group dropdowns
   document.getElementById('yc-site').innerHTML =
     '<option value="">— select site —</option>' +
-    state.sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    state.sites.filter(s=>s.active!==false).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   document.getElementById('yc-group').innerHTML =
     '<option value="">— select group —</option>' +
     state.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
@@ -2341,7 +2387,7 @@ function renderYardCountGrid() {
   const grid  = document.getElementById('yardcount-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const inDepot = state.depot[p.id] || 0;
     const row     = document.createElement('div');
     row.className = 'yardcount-row';
@@ -2363,7 +2409,7 @@ function renderYardCountGrid() {
 function updateYardCountDiff() {
   const state    = getState();
   let   totalDiff = 0;
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const inDepot = state.depot[p.id] || 0;
     const raw     = document.getElementById('yc-' + p.id)?.value;
     const diffEl  = document.getElementById('yc-diff-' + p.id);
