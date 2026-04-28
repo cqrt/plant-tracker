@@ -1358,20 +1358,25 @@ function renderDashboard() {
   document.getElementById('corrections-total-badge').textContent = cor.toLocaleString()+' plants';
   const maxS = getPlants().reduce((m,p)=>Math.max(m,state.startingSupplier[p.id]||0),1);
   const maxC = Math.max(...getPlants().map(p=>state.corrections[p.id]||0),1);
-  renderStockTable('supplier-table',    'supplier',    maxS);
+  renderStockTable('supplier-table',    'supplier',    maxS, state.startingSupplier);
   renderStockTable('depot-table',       'depot',       maxS);
   renderStockTable('corrections-table', 'corrections', maxC);
   renderTransferGrid();
 }
 
-function renderStockTable(tableId, stockKey, maxQty) {
+function renderStockTable(tableId, stockKey, maxQty, startingStock) {
   const state = getState();
   const table = document.getElementById(tableId);
   table.innerHTML = `<thead><tr><th>Plant</th><th>Trays</th><th>Qty</th></tr></thead>`;
   const tbody = document.createElement('tbody');
   getActivePlants().forEach(p => {
-    const qty = state[stockKey][p.id]||0;
-    const w   = maxQty>0?pct(qty,maxQty):0;
+    const qty   = state[stockKey][p.id] || 0;
+    const start = startingStock ? (startingStock[p.id] || 0) : 0;
+    const pctRem = start > 0 ? Math.round(qty / start * 100) : null;
+    const pctColor = pctRem !== null
+      ? (pctRem <= 25 ? 'var(--red)' : pctRem <= 50 ? 'var(--amber)' : 'var(--text-light)')
+      : '';
+    const w   = maxQty > 0 ? pct(qty, maxQty) : 0;
     const tr  = document.createElement('tr');
     tr.innerHTML = `
       <td>
@@ -1380,7 +1385,10 @@ function renderStockTable(tableId, stockKey, maxQty) {
         <div class="stock-bar-wrap"><div class="stock-bar" style="width:${w}%"></div></div>
       </td>
       <td style="color:var(--text-light);font-size:13px;">${trays(qty,p)}</td>
-      <td class="qty">${qty.toLocaleString()}</td>
+      <td class="qty">
+        ${qty.toLocaleString()}
+        ${pctRem !== null ? `<div style="font-size:11px;color:${pctColor};font-family:'DM Sans',sans-serif;font-weight:400;margin-top:2px;">${pctRem}% remaining</div>` : ''}
+      </td>
     `;
     tbody.appendChild(tr);
   });
