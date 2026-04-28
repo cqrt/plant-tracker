@@ -1835,13 +1835,17 @@ function confirmNewSeason() {
     name,
     start:            state.seasonStart,
     end:              new Date().toISOString().split('T')[0],
+    plants:           getPlants().map(p => Object.assign({}, p)),
     startingSupplier: Object.assign({}, state.startingSupplier),
     finalSupplier:    Object.assign({}, state.supplier),
     finalDepot:       Object.assign({}, state.depot),
     finalCorrections: Object.assign({}, state.corrections),
     transfers:        toArray(state.transfers).map(t => Object.assign({}, t)),
     orders:           toArray(state.orders).map(o => Object.assign({}, o)),
-    plantings:        toArray(state.plantings).map(p => Object.assign({}, p)),
+    plantings:        toArray(state.plantings).map(p => {
+      // Deep-copy each planting so its nested species object is preserved
+      return Object.assign({}, p, { species: Object.assign({}, p.species || {}) });
+    }),
     sites:            toArray(state.sites).map(s => Object.assign({}, s)),
     groups:           toArray(state.groups).map(g => Object.assign({}, g)),
     totalPlanted:     totalPlanted(),
@@ -1885,7 +1889,9 @@ function renderArchives() {
   state.archives.forEach((arc,arcIdx)=>{
     const startFmt=arc.start?new Date(arc.start+'T12:00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}):'—';
     const endFmt  =arc.end  ?new Date(arc.end  +'T12:00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}):'—';
-    const speciesPills=getPlants().map(p=>{
+    // Use the plants list saved with this archive (falls back to current list for old archives)
+    const arcPlants = (arc.plants && arc.plants.length) ? arc.plants : getPlants();
+    const speciesPills=arcPlants.map(p=>{
       const start=arc.startingSupplier?.[p.id]??0;
       const final=arc.finalSupplier?.[p.id]??0;
       return `<span class="archive-pill"><strong>${p.name}</strong> <em style="font-size:11px;color:var(--text-light);font-weight:400;">${p.sci}</em> — ${Math.max(0,start-final).toLocaleString()} used of ${start.toLocaleString()}</span>`;
