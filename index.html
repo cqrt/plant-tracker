@@ -293,6 +293,20 @@
   .available-hint.warn  { color: var(--amber); }
   .available-hint.error { color: var(--red); }
 
+  /* ── ORDER FORM — PERCENTAGE BAR ── */
+  .order-pct-bar-wrap { height: 5px; background: var(--cream-200); border-radius: 3px; margin: 6px 0 4px; overflow: hidden; }
+  .order-pct-bar { height: 100%; border-radius: 3px; background: var(--green-400); transition: width 0.2s, background 0.2s; }
+  .order-tray-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 500; padding: 2px 8px;
+    border-radius: 10px; margin-top: 3px;
+    background: var(--cream-200); color: var(--text-mid);
+    transition: background 0.15s, color 0.15s;
+  }
+  .order-tray-badge.warn  { background: var(--amber-light); color: var(--amber); }
+  .order-tray-badge.error { background: var(--red-light);   color: var(--red);   }
+  .order-tray-badge.good  { background: var(--green-100);   color: var(--green-700); }
+
   .btn { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; border: none; border-radius: 8px; padding: 11px 20px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
   .btn-primary { background: var(--green-700); color: white; }
   .btn-primary:hover { background: var(--green-600); }
@@ -1437,30 +1451,75 @@ function renderOrderForm() {
   const grid = document.getElementById('order-form-grid');
   grid.innerHTML = '';
   getActivePlants().forEach(p => {
-    const avail = state.supplier[p.id] || 0;
+    const avail    = state.supplier[p.id] || 0;
+    const availTrys = Math.floor(avail / p.traySize);
     const grp   = document.createElement('div');
     grp.className = 'form-group';
     grp.innerHTML = `
-      <label class="form-label">${p.name} <span class="sci">${p.sci}</span></label>
-      <input type="number" id="qty-${p.id}" min="0" step="1" value="0"
-        oninput="updateOrderHints('${p.id}',${avail}); updateRunningTotal();" />
-      <div class="available-hint" id="hint-${p.id}">${avail.toLocaleString()} available (${trays(avail,p)} trays)</div>
+      <label class="form-label">${p.name} <span class="sci">${p.sci}</span>
+        <span style="font-size:10px;color:var(--text-light);font-weight:400;margin-left:4px;">${p.traySize}/tray</span>
+      </label>
+      <input type="number" id="qty-${p.id}" min="0" step="${p.traySize}" value="0"
+        oninput="updateOrderHints('${p.id}',${avail},${p.traySize}); updateRunningTotal();" />
+      <div class="order-pct-bar-wrap"><div class="order-pct-bar" id="pct-bar-${p.id}" style="width:0%"></div></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span class="order-tray-badge" id="tray-badge-${p.id}">0 trays</span>
+        <span class="available-hint" id="hint-${p.id}">${avail.toLocaleString()} available &mdash; ${availTrys} trays</span>
+      </div>
     `;
     grid.appendChild(grp);
   });
   updateRunningTotal();
 }
 
-function updateOrderHints(id, avail) {
-  const val=parseInt(document.getElementById('qty-'+id).value)||0;
-  const hint=document.getElementById('hint-'+id);
-  const p=getPlants().find(x=>x.id===id);
-  if(val>avail){
-    hint.className='available-hint error'; hint.textContent=`⚠ Only ${avail.toLocaleString()} available`;
-  } else if(val>0){
-    hint.className='available-hint'; hint.textContent=`${(avail-val).toLocaleString()} remaining (${trays(avail,p)} avail)`;
+function updateOrderHints(id, avail, traySize) {
+  const val      = parseInt(document.getElementById('qty-'+id).value) || 0;
+  const hint     = document.getElementById('hint-'+id);
+  const bar      = document.getElementById('pct-bar-'+id);
+  const badge    = document.getElementById('tray-badge-'+id);
+  const p        = getPlants().find(x => x.id === id);
+  const ts       = traySize || (p ? p.traySize : 1);
+  const availTrys = Math.floor(avail / ts);
+  const pctVal   = avail > 0 ? Math.min(100, val / avail * 100) : 0;
+
+  // Update percentage bar colour based on proportion being ordered
+  if (bar) {
+    bar.style.width = pctVal + '%';
+    bar.style.background = pctVal >= 75 ? 'var(--red)'
+                         : pctVal >= 40 ? 'var(--amber)'
+                         : 'var(--green-400)';
+  }
+
+  // Tray badge
+  if (badge) {
+    if (val === 0) {
+      badge.className = 'order-tray-badge';
+      badge.textContent = '0 trays';
+    } else {
+      const trayCount   = val / ts;
+      const isWhole     = val % ts === 0;
+      const nearestDown = Math.floor(val / ts) * ts;
+      const nearestUp   = Math.ceil(val / ts) * ts;
+      if (!isWhole) {
+        badge.className = 'order-tray-badge warn';
+        badge.textContent = `⚠ ${trayCount.toFixed(2)} trays — not whole! ↓${nearestDown} or ↑${nearestUp}`;
+      } else {
+        badge.className = 'order-tray-badge good';
+        badge.textContent = `${trayCount} tray${trayCount !== 1 ? 's' : ''} (${pctVal.toFixed(1)}%)`;
+      }
+    }
+  }
+
+  // Available hint
+  if (val > avail) {
+    hint.className = 'available-hint error';
+    hint.textContent = `⚠ Only ${avail.toLocaleString()} available (${availTrys} trays)`;
+  } else if (val > 0) {
+    hint.className = 'available-hint';
+    hint.textContent = `${(avail - val).toLocaleString()} remaining — ${Math.floor((avail - val) / ts)} trays left`;
   } else {
-    hint.className='available-hint'; hint.textContent=`${avail.toLocaleString()} available (${trays(avail,p)} trays)`;
+    hint.className = 'available-hint';
+    hint.textContent = `${avail.toLocaleString()} available — ${availTrys} trays`;
   }
 }
 
