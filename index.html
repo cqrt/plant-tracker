@@ -934,6 +934,13 @@ const auth      = getAuth(app);
 const provider  = new GoogleAuthProvider();
 const STATE_REF = ref(db, 'plantTracker/state');
 
+// ── Access control — only these email addresses can use the app ──────────
+// Add or remove emails here. Comparison is case-insensitive.
+const ALLOWED_EMAILS = [
+  'le.mckenzies@gmail.com',        // ← replace with your Google account email
+  'mathew.mckenzie@icc.govt.nz'    // ← uncomment and add others as needed
+];
+
 // ── Auth helpers exposed to classic script ──────
 window._signInWithGoogle = async function() {
   const errEl = document.getElementById('auth-error');
@@ -969,14 +976,28 @@ getRedirectResult(auth).catch(err => {
 // ── Auth state observer ─────────────────────────
 let _dbListenerActive = false;
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   const authScreen  = document.getElementById('auth-screen');
   const menuWrap    = document.getElementById('user-menu-wrap');
   const avatarImg   = document.getElementById('auth-avatar-img');
   const avatarPh    = document.getElementById('auth-avatar-placeholder');
   const displayName = document.getElementById('auth-display-name');
+  const errEl       = document.getElementById('auth-error');
 
   if (user) {
+    // ── Allowlist check ───────────────────────────────────────────────────
+    const userEmail = (user.email || '').toLowerCase();
+    const allowed   = ALLOWED_EMAILS.map(e => e.toLowerCase());
+    if (!allowed.includes(userEmail)) {
+      await signOut(auth);
+      if (errEl) errEl.textContent = '⛔ Access denied — this account is not authorised.';
+      if (authScreen) authScreen.classList.add('visible');
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) { overlay.classList.add('hidden'); setTimeout(() => { overlay.style.display = 'none'; }, 450); }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // Hide auth screen, show app
     if (authScreen) authScreen.classList.remove('visible');
 
