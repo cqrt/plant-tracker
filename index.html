@@ -538,6 +538,139 @@
     font-size: 10px; font-weight: 500; letter-spacing: 0.6px;
     text-transform: uppercase; color: var(--text-light);
   }
+
+  /* ── PRINT STYLES FOR PDF EXPORT ── */
+  @media print {
+    body { background: white !important; }
+    nav, .nav-tabs, .user-menu-wrap, #toast, .modal-overlay, .season-modal-overlay, .btn, .btn-sm, button { display: none !important; }
+    main { max-width: 100% !important; padding: 0 !important; }
+    .page { display: block !important; }
+    .archive-card { break-inside: avoid; page-break-inside: avoid; box-shadow: none !important; border: 1px solid #ddd !important; }
+    .archive-detail { display: block !important; }
+    .archive-header { cursor: default !important; }
+    .archive-chevron { display: none !important; }
+  }
+
+  /* ── PRINTABLE REPORT STYLES ── */
+  .report-container {
+    font-family: 'DM Sans', Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px;
+    background: white;
+    color: #1a2e22;
+  }
+  .report-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #336146;
+  }
+  .report-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 28px;
+    color: #1a3a2a;
+    margin-bottom: 8px;
+  }
+  .report-subtitle {
+    font-size: 14px;
+    color: #6b8c79;
+  }
+  .report-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #f0faf4;
+    border-radius: 8px;
+  }
+  .report-meta-item {
+    text-align: center;
+  }
+  .report-meta-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b8c79;
+    margin-bottom: 4px;
+  }
+  .report-meta-value {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 24px;
+    color: #264d38;
+  }
+  .report-section {
+    margin-bottom: 24px;
+  }
+  .report-section-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 18px;
+    color: #1a3a2a;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #b8dcc6;
+  }
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .report-table th {
+    background: #ddf0e5;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #3d5748;
+    border-bottom: 2px solid #8cc4a0;
+  }
+  .report-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .report-table tr:last-child td {
+    border-bottom: none;
+  }
+  .report-table tfoot td {
+    font-weight: 500;
+    background: #f0faf4;
+    border-top: 2px solid #8cc4a0;
+  }
+  .report-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid #ddd;
+    text-align: center;
+    font-size: 11px;
+    color: #6b8c79;
+  }
+  .report-species-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  .report-species-item {
+    padding: 8px 12px;
+    background: #f0faf4;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .report-species-name {
+    font-weight: 500;
+    color: #264d38;
+  }
+  .report-species-sci {
+    font-style: italic;
+    color: #6b8c79;
+    font-size: 11px;
+  }
+  .report-species-qty {
+    float: right;
+    font-family: 'Playfair Display', Georgia, serif;
+    color: #336146;
+  }
 </style>
 </head>
 <body>
@@ -2068,6 +2201,7 @@ function renderArchives() {
           <div class="archive-dates">${startFmt} → ${endFmt} · ${(arc.plantings||[]).length} planting events · ${(arc.orders||[]).length} orders</div>
         </div>
         <button class="btn" style="font-size:11px;padding:5px 10px;margin-right:8px;z-index:1;position:relative;flex-shrink:0;background:var(--green-600);color:white;" onclick="event.stopPropagation();openEditArchiveModal(${arcIdx})">Edit</button>
+        <button class="btn" style="font-size:11px;padding:5px 10px;margin-right:8px;z-index:1;position:relative;flex-shrink:0;background:var(--amber);color:white;" onclick="event.stopPropagation();exportArchivePDF(${arcIdx})">📄 PDF</button>
         <button class="btn btn-danger" style="font-size:11px;padding:5px 10px;margin-right:8px;z-index:1;position:relative;flex-shrink:0;" onclick="event.stopPropagation();deleteArchive(${arcIdx})">Delete</button>
         <div class="archive-chevron">&#8964;</div>
       </div>
@@ -2150,6 +2284,245 @@ function saveArchiveEdit() {
 }
 
 function toggleArchive(uid) { document.getElementById(uid).classList.toggle('open'); }
+
+function exportArchivePDF(idx) {
+  const state = getState();
+  const arc = state.archives[idx];
+  if (!arc) { toast('Archive not found'); return; }
+
+  // Use the plants list saved with this archive
+  const arcPlants = (arc.plants && arc.plants.length) ? arc.plants : getPlants();
+
+  // Format dates
+  const startFmt = arc.start ? new Date(arc.start + 'T12:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const endFmt = arc.end ? new Date(arc.end + 'T12:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const generatedFmt = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Build species usage data
+  const speciesData = arcPlants.map(p => {
+    const start = arc.startingSupplier?.[p.id] ?? 0;
+    const final = arc.finalSupplier?.[p.id] ?? 0;
+    const used = Math.max(0, start - final);
+    return { ...p, start, final, used };
+  }).filter(s => s.start > 0 || s.used > 0);
+
+  // Build sites data
+  const sitesData = (arc.sites || []).map(s => {
+    const planted = (arc.plantings || []).filter(p => p.siteId === s.id).reduce((t, p) => t + p.count, 0);
+    const pct = s.expected > 0 ? Math.min(100, Math.round(planted / s.expected * 100)) : 0;
+    return { name: s.name, planted, expected: s.expected, pct };
+  }).sort((a, b) => b.planted - a.planted);
+
+  // Build groups data
+  const groupsData = (arc.groups || DEFAULT_GROUPS).map(g => ({
+    name: g.name,
+    total: (arc.plantings || []).filter(p => p.groupId === g.id).reduce((t, p) => t + p.count, 0)
+  })).filter(g => g.total > 0).sort((a, b) => b.total - a.total);
+
+  // Build plantings data (last 20 for report)
+  const plantingsData = [...(arc.plantings || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+
+  // Create the report HTML
+  const reportHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${arc.name} - Season Report</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #1a2e22;
+      background: white;
+    }
+    .report-header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #336146;
+    }
+    .report-title {
+      font-family: Georgia, serif;
+      font-size: 24pt;
+      color: #1a3a2a;
+      margin-bottom: 6px;
+    }
+    .report-subtitle {
+      font-size: 11pt;
+      color: #6b8c79;
+    }
+    .report-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding: 12px;
+      background: #f0faf4;
+      border-radius: 6px;
+    }
+    .report-meta-item { text-align: center; }
+    .report-meta-label {
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6b8c79;
+      margin-bottom: 2px;
+    }
+    .report-meta-value {
+      font-family: Georgia, serif;
+      font-size: 18pt;
+      color: #264d38;
+    }
+    .report-section { margin-bottom: 20px; }
+    .report-section-title {
+      font-family: Georgia, serif;
+      font-size: 14pt;
+      color: #1a3a2a;
+      margin-bottom: 10px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #b8dcc6;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 12px; }
+    th {
+      background: #ddf0e5;
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #3d5748;
+      border-bottom: 1px solid #8cc4a0;
+    }
+    td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+    tr:last-child td { border-bottom: none; }
+    tfoot td { font-weight: 600; background: #f0faf4; border-top: 1px solid #8cc4a0; }
+    .num { text-align: right; font-family: Georgia, serif; }
+    .report-footer {
+      margin-top: 30px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+      text-align: center;
+      font-size: 9pt;
+      color: #6b8c79;
+    }
+    .two-col { display: flex; gap: 20px; }
+    .two-col > div { flex: 1; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <div class="report-title">${arc.name}</div>
+    <div class="report-subtitle">${startFmt} — ${endFmt}</div>
+  </div>
+
+  <div class="report-meta">
+    <div class="report-meta-item">
+      <div class="report-meta-label">Total Planted</div>
+      <div class="report-meta-value">${(arc.totalPlanted || 0).toLocaleString()}</div>
+    </div>
+    <div class="report-meta-item">
+      <div class="report-meta-label">Total Ordered</div>
+      <div class="report-meta-value">${(arc.totalOrdered || 0).toLocaleString()}</div>
+    </div>
+    <div class="report-meta-item">
+      <div class="report-meta-label">Planting Events</div>
+      <div class="report-meta-value">${(arc.plantings || []).length}</div>
+    </div>
+    <div class="report-meta-item">
+      <div class="report-meta-label">Species Used</div>
+      <div class="report-meta-value">${speciesData.filter(s => s.used > 0).length}</div>
+    </div>
+  </div>
+
+  <div class="report-section">
+    <div class="report-section-title">Species Summary</div>
+    <table>
+      <thead><tr><th>Species</th><th>Scientific</th><th class="num">Starting</th><th class="num">Used</th><th class="num">Remaining</th></tr></thead>
+      <tbody>
+        ${speciesData.map(s => `<tr>
+          <td>${s.name}</td>
+          <td style="font-style:italic;color:#6b8c79;">${s.sci}</td>
+          <td class="num">${s.start.toLocaleString()}</td>
+          <td class="num">${s.used.toLocaleString()}</td>
+          <td class="num">${s.final.toLocaleString()}</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="2">Total</td><td class="num">${speciesData.reduce((t, s) => t + s.start, 0).toLocaleString()}</td><td class="num">${speciesData.reduce((t, s) => t + s.used, 0).toLocaleString()}</td><td class="num">${speciesData.reduce((t, s) => t + s.final, 0).toLocaleString()}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="two-col">
+    <div class="report-section">
+      <div class="report-section-title">By Site</div>
+      <table>
+        <thead><tr><th>Site</th><th class="num">Expected</th><th class="num">Planted</th><th class="num">%</th></tr></thead>
+        <tbody>
+          ${sitesData.slice(0, 12).map(s => `<tr>
+            <td>${s.name}</td>
+            <td class="num">${s.expected.toLocaleString()}</td>
+            <td class="num">${s.planted.toLocaleString()}</td>
+            <td class="num">${s.pct}%</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td>Total</td><td class="num">${sitesData.reduce((t, s) => t + s.expected, 0).toLocaleString()}</td><td class="num">${sitesData.reduce((t, s) => t + s.planted, 0).toLocaleString()}</td><td class="num">${sitesData.length > 0 ? Math.round(sitesData.reduce((t, s) => t + s.planted, 0) / sitesData.reduce((t, s) => t + s.expected, 1) * 100) : 0}%</td></tr></tfoot>
+      </table>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-title">By Group</div>
+      <table>
+        <thead><tr><th>Group</th><th class="num">Plants</th><th class="num">Share</th></tr></thead>
+        <tbody>
+          ${groupsData.slice(0, 10).map(g => {
+            const share = groupsData.reduce((t, g) => t + g.total, 0) > 0 ? Math.round(g.total / groupsData.reduce((t, g) => t + g.total, 0) * 100) : 0;
+            return `<tr><td>${g.name}</td><td class="num">${g.total.toLocaleString()}</td><td class="num">${share}%</td></tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr><td>Total</td><td class="num">${groupsData.reduce((t, g) => t + g.total, 0).toLocaleString()}</td><td class="num">100%</td></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="report-section">
+    <div class="report-section-title">Recent Plantings (Last 20)</div>
+    <table>
+      <thead><tr><th>Date</th><th>Site</th><th>Group</th><th class="num">Plants</th></tr></thead>
+      <tbody>
+        ${plantingsData.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#6b8c79;">No plantings recorded</td></tr>' : plantingsData.map(p => {
+          const site = (arc.sites || []).find(s => s.id === p.siteId);
+          const group = (arc.groups || []).find(g => g.id === p.groupId);
+          const dateFmt = new Date(p.date + 'T12:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+          return `<tr><td>${dateFmt}</td><td>${site ? site.name : p.siteId || '—'}</td><td>${group ? group.name : p.groupId || '—'}</td><td class="num">${p.count.toLocaleString()}</td></tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="report-footer">
+    Generated on ${generatedFmt} • Plant Stock Tracker
+  </div>
+</body>
+</html>`;
+
+  // Open a new window with the report and trigger print dialog
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    toast('⚠ Pop-up blocked — please allow pop-ups to export PDF');
+    return;
+  }
+  printWindow.document.write(reportHTML);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 250);
+}
 
 function deleteArchive(idx) {
   const state=getState();
