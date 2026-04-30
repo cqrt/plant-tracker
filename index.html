@@ -863,6 +863,30 @@
 
 </main>
 
+<!-- EDIT ARCHIVE MODAL -->
+<div class="modal-overlay" id="edit-archive-modal">
+  <div class="modal-box">
+    <h3>Edit Archive</h3>
+    <p>Update the archive name and date range.</p>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Archive name</label>
+      <input type="text" id="edit-archive-name" placeholder="e.g. Season 2025" />
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Start date</label>
+      <input type="date" id="edit-archive-start" />
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">End date</label>
+      <input type="date" id="edit-archive-end" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveArchiveEdit()">Save Changes</button>
+      <button class="btn" style="background:var(--cream-200);color:var(--text-mid);" onclick="closeEditArchiveModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- FACTORY RESET MODAL -->
 <div class="modal-overlay" id="factory-reset-modal">
   <div class="modal-box">
@@ -2043,6 +2067,7 @@ function renderArchives() {
         <div style="flex:1;"><h3>${arc.name}</h3>
           <div class="archive-dates">${startFmt} → ${endFmt} · ${(arc.plantings||[]).length} planting events · ${(arc.orders||[]).length} orders</div>
         </div>
+        <button class="btn" style="font-size:11px;padding:5px 10px;margin-right:8px;z-index:1;position:relative;flex-shrink:0;background:var(--green-600);color:white;" onclick="event.stopPropagation();openEditArchiveModal(${arcIdx})">Edit</button>
         <button class="btn btn-danger" style="font-size:11px;padding:5px 10px;margin-right:8px;z-index:1;position:relative;flex-shrink:0;" onclick="event.stopPropagation();deleteArchive(${arcIdx})">Delete</button>
         <div class="archive-chevron">&#8964;</div>
       </div>
@@ -2088,6 +2113,40 @@ function renderArchives() {
     `;
     list.appendChild(card);
   });
+}
+
+let _editingArchiveIdx = null;
+
+function openEditArchiveModal(idx) {
+  const state = getState();
+  const arc = state.archives[idx];
+  if (!arc) return;
+  _editingArchiveIdx = idx;
+  document.getElementById('edit-archive-name').value = arc.name || '';
+  document.getElementById('edit-archive-start').value = arc.start || '';
+  document.getElementById('edit-archive-end').value = arc.end || '';
+  document.getElementById('edit-archive-modal').classList.add('open');
+}
+
+function closeEditArchiveModal() {
+  document.getElementById('edit-archive-modal').classList.remove('open');
+  _editingArchiveIdx = null;
+}
+
+function saveArchiveEdit() {
+  if (_editingArchiveIdx === null) return;
+  const state = getState();
+  const name = document.getElementById('edit-archive-name').value.trim();
+  const start = document.getElementById('edit-archive-start').value;
+  const end = document.getElementById('edit-archive-end').value;
+  if (!name) { toast('Archive name cannot be empty'); return; }
+  state.archives[_editingArchiveIdx].name = name;
+  state.archives[_editingArchiveIdx].start = start;
+  state.archives[_editingArchiveIdx].end = end;
+  saveState();
+  closeEditArchiveModal();
+  renderArchives();
+  toast('✓ Archive updated');
 }
 
 function toggleArchive(uid) { document.getElementById(uid).classList.toggle('open'); }
