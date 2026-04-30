@@ -2306,12 +2306,12 @@ function exportArchivePDF(idx) {
     return { ...p, start, final, used };
   }).filter(s => s.start > 0 || s.used > 0);
 
-  // Build sites data
+  // Build sites data - exclude sites with no expected AND no planted
   const sitesData = (arc.sites || []).map(s => {
     const planted = (arc.plantings || []).filter(p => p.siteId === s.id).reduce((t, p) => t + p.count, 0);
     const pct = s.expected > 0 ? Math.min(100, Math.round(planted / s.expected * 100)) : 0;
     return { name: s.name, planted, expected: s.expected, pct };
-  }).sort((a, b) => b.planted - a.planted);
+  }).filter(s => s.expected > 0 || s.planted > 0).sort((a, b) => b.planted - a.planted);
 
   // Build groups data
   const groupsData = (arc.groups || DEFAULT_GROUPS).map(g => ({
