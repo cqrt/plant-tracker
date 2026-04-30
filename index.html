@@ -2386,7 +2386,6 @@ function exportArchivePDF(idx) {
     }
     table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 12px; }
     th {
-      background: #ddf0e5;
       padding: 8px 10px;
       text-align: left;
       font-weight: 600;
@@ -2394,11 +2393,11 @@ function exportArchivePDF(idx) {
       text-transform: uppercase;
       letter-spacing: 0.3px;
       color: #3d5748;
-      border-bottom: 1px solid #8cc4a0;
+      border-bottom: 2px solid;
     }
     td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
     tr:last-child td { border-bottom: none; }
-    tfoot td { font-weight: 600; background: #f0faf4; border-top: 1px solid #8cc4a0; }
+    tfoot td { font-weight: 600; border-top: 2px solid; }
     .num { text-align: right; font-family: Georgia, serif; }
     .report-footer {
       margin-top: 30px;
@@ -2408,8 +2407,24 @@ function exportArchivePDF(idx) {
       font-size: 9pt;
       color: #6b8c79;
     }
-    .two-col { display: flex; gap: 20px; }
-    .two-col > div { flex: 1; }
+    /* Species section - green theme */
+    .section-species th { background: #ddf0e5; border-bottom-color: #8cc4a0; }
+    .section-species tfoot td { background: #f0faf4; border-top-color: #8cc4a0; }
+    /* By Site section - light blue theme */
+    .section-sites { background: #e8f4fc; padding: 14px; border-radius: 8px; }
+    .section-sites .report-section-title { color: #1a4a6a; border-bottom-color: #7ab8d4; }
+    .section-sites th { background: #d0e8f8; border-bottom-color: #5a9fc8; color: #2a5a7a; }
+    .section-sites tfoot td { background: #c8e0f4; border-top-color: #5a9fc8; }
+    /* By Group section - pastel orange theme */
+    .section-groups { background: #fef3e8; padding: 14px; border-radius: 8px; }
+    .section-groups .report-section-title { color: #8a4a1a; border-bottom-color: #d4a07a; }
+    .section-groups th { background: #fce8d8; border-bottom-color: #c8905a; color: #6a3a2a; }
+    .section-groups tfoot td { background: #f8e0c8; border-top-color: #c8905a; }
+    /* Recent Plantings section - subtle purple theme */
+    .section-plantings { background: #f4f0f8; padding: 14px; border-radius: 8px; }
+    .section-plantings .report-section-title { color: #4a3a6a; border-bottom-color: #a090c4; }
+    .section-plantings th { background: #e8e0f4; border-bottom-color: #9080b8; color: #3a2a5a; }
+    .section-plantings tfoot td { background: #e4d8f0; border-top-color: #9080b8; }
     @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
@@ -2438,7 +2453,7 @@ function exportArchivePDF(idx) {
     </div>
   </div>
 
-  <div class="report-section">
+  <div class="report-section section-species">
     <div class="report-section-title">Species Summary</div>
     <table>
       <thead><tr><th>Species</th><th>Scientific</th><th class="num">Starting</th><th class="num">Used</th><th class="num">Remaining</th></tr></thead>
@@ -2457,39 +2472,37 @@ function exportArchivePDF(idx) {
     </table>
   </div>
 
-  <div class="two-col">
-    <div class="report-section">
-      <div class="report-section-title">By Site</div>
-      <table>
-        <thead><tr><th>Site</th><th class="num">Expected</th><th class="num">Planted</th><th class="num">%</th></tr></thead>
-        <tbody>
-          ${sitesData.slice(0, 12).map(s => `<tr>
-            <td>${s.name}</td>
-            <td class="num">${s.expected.toLocaleString()}</td>
-            <td class="num">${s.planted.toLocaleString()}</td>
-            <td class="num">${s.pct}%</td>
-          </tr>`).join('')}
-        </tbody>
-        <tfoot><tr><td>Total</td><td class="num">${sitesData.reduce((t, s) => t + s.expected, 0).toLocaleString()}</td><td class="num">${sitesData.reduce((t, s) => t + s.planted, 0).toLocaleString()}</td><td class="num">${sitesData.length > 0 ? Math.round(sitesData.reduce((t, s) => t + s.planted, 0) / sitesData.reduce((t, s) => t + s.expected, 1) * 100) : 0}%</td></tr></tfoot>
-      </table>
-    </div>
-
-    <div class="report-section">
-      <div class="report-section-title">By Group</div>
-      <table>
-        <thead><tr><th>Group</th><th class="num">Plants</th><th class="num">Share</th></tr></thead>
-        <tbody>
-          ${groupsData.slice(0, 10).map(g => {
-            const share = groupsData.reduce((t, g) => t + g.total, 0) > 0 ? Math.round(g.total / groupsData.reduce((t, g) => t + g.total, 0) * 100) : 0;
-            return `<tr><td>${g.name}</td><td class="num">${g.total.toLocaleString()}</td><td class="num">${share}%</td></tr>`;
-          }).join('')}
-        </tbody>
-        <tfoot><tr><td>Total</td><td class="num">${groupsData.reduce((t, g) => t + g.total, 0).toLocaleString()}</td><td class="num">100%</td></tr></tfoot>
-      </table>
-    </div>
+  <div class="report-section section-sites">
+    <div class="report-section-title">By Site</div>
+    <table>
+      <thead><tr><th>Site</th><th class="num">Expected</th><th class="num">Planted</th><th class="num">%</th></tr></thead>
+      <tbody>
+        ${sitesData.slice(0, 15).map(s => `<tr>
+          <td>${s.name}</td>
+          <td class="num">${s.expected.toLocaleString()}</td>
+          <td class="num">${s.planted.toLocaleString()}</td>
+          <td class="num">${s.pct}%</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot><tr><td>Total</td><td class="num">${sitesData.reduce((t, s) => t + s.expected, 0).toLocaleString()}</td><td class="num">${sitesData.reduce((t, s) => t + s.planted, 0).toLocaleString()}</td><td class="num">${sitesData.length > 0 ? Math.round(sitesData.reduce((t, s) => t + s.planted, 0) / sitesData.reduce((t, s) => t + s.expected, 1) * 100) : 0}%</td></tr></tfoot>
+    </table>
   </div>
 
-  <div class="report-section">
+  <div class="report-section section-groups">
+    <div class="report-section-title">By Group</div>
+    <table>
+      <thead><tr><th>Group</th><th class="num">Plants</th><th class="num">Share</th></tr></thead>
+      <tbody>
+        ${groupsData.slice(0, 12).map(g => {
+          const share = groupsData.reduce((t, g) => t + g.total, 0) > 0 ? Math.round(g.total / groupsData.reduce((t, g) => t + g.total, 0) * 100) : 0;
+          return `<tr><td>${g.name}</td><td class="num">${g.total.toLocaleString()}</td><td class="num">${share}%</td></tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr><td>Total</td><td class="num">${groupsData.reduce((t, g) => t + g.total, 0).toLocaleString()}</td><td class="num">100%</td></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="report-section section-plantings">
     <div class="report-section-title">Recent Plantings (Last 20)</div>
     <table>
       <thead><tr><th>Date</th><th>Site</th><th>Group</th><th class="num">Plants</th></tr></thead>
