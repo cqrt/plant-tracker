@@ -1904,11 +1904,20 @@ function confirmNewSeason() {
     newStock[p.id] = parseInt(document.getElementById('new-stock-'+p.id).value) || 0;
   });
 
+  // Calculate the actual end date from last activity (planting, order, or transfer)
+  const allDates = [
+    ...(state.plantings || []).map(p => p.date),
+    ...(state.orders || []).map(o => o.date),
+  ].filter(d => d);
+  const endDate = allDates.length > 0 
+    ? allDates.sort((a, b) => b.localeCompare(a))[0]
+    : new Date().toISOString().split('T')[0];
+
   // Safely snapshot current season into the archive
   const archive = {
-    name,
+    name:             state.seasonName,  // Use CURRENT season name, not new season name
     start:            state.seasonStart,
-    end:              new Date().toISOString().split('T')[0],
+    end:              endDate,
     plants:           getPlants().map(p => Object.assign({}, p)),
     startingSupplier: Object.assign({}, state.startingSupplier),
     finalSupplier:    Object.assign({}, state.supplier),
