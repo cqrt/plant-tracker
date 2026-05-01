@@ -2319,8 +2319,8 @@ function exportArchivePDF(idx) {
     total: (arc.plantings || []).filter(p => p.groupId === g.id).reduce((t, p) => t + p.count, 0)
   })).filter(g => g.total > 0).sort((a, b) => b.total - a.total);
 
-  // Build plantings data (last 20 for report)
-  const plantingsData = [...(arc.plantings || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+  // Build plantings data (all plantings for report)
+  const plantingsData = [...(arc.plantings || [])].sort((a, b) => b.date.localeCompare(a.date));
 
   // Create the report HTML
   const reportHTML = `<!DOCTYPE html>
@@ -2329,7 +2329,7 @@ function exportArchivePDF(idx) {
   <meta charset="UTF-8">
   <title>${arc.name} - Season Report</title>
   <style>
-    @page { size: A4; margin: 20mm; }
+    @page { size: A4; margin: 15mm 20mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
@@ -2340,8 +2340,8 @@ function exportArchivePDF(idx) {
     }
     .report-header {
       text-align: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
       border-bottom: 2px solid #336146;
     }
     .report-title {
@@ -2503,7 +2503,7 @@ function exportArchivePDF(idx) {
   </div>
 
   <div class="report-section section-plantings">
-    <div class="report-section-title">Recent Plantings (Last 20)</div>
+    <div class="report-section-title">Plantings</div>
     <table>
       <thead><tr><th>Date</th><th>Site</th><th>Group</th><th class="num">Plants</th></tr></thead>
       <tbody>
