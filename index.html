@@ -500,7 +500,7 @@
     .nav-brand h1 { font-size:15px; }
   }
 
-  /* ── YARD COUNT SCRATCHPAD ── */
+  /* ── YARD AUDIT SCRATCHPAD ── */
   .yardcount-row {
     display: grid;
     grid-template-columns: 1fr 90px 90px 90px;
@@ -716,7 +716,7 @@
       <button class="nav-tab" onclick="showPage('history')">Order History</button>
       <button class="nav-tab" onclick="showPage('plantings')">Plantings</button>
       <button class="nav-tab" onclick="showPage('sites')">Sites</button>
-      <button class="nav-tab" onclick="showPage('yardcount')">Yard Count</button>
+      <button class="nav-tab" onclick="showPage('yardcount')">Yard Audit</button>
       <div id="sync-indicator" class="status-online" title="Database sync status">
         <div class="sync-dot"></div>
         <span id="sync-label">Live</span>
@@ -883,9 +883,9 @@
     </div>
   </div>
 
-  <!-- YARD COUNT -->
+  <!-- YARD AUDIT -->
   <div id="page-yardcount" class="page">
-    <p class="section-title">Yard Count</p>
+    <p class="section-title">Yard Audit</p>
     <p class="section-sub">Count plants physically present at Queens Park — missing plants are logged as a planting automatically</p>
     <div class="form-card">
       <p class="form-section-title">Planting details</p>
@@ -2887,7 +2887,7 @@ function toggleSiteActive(idx) {
   window._reRenderActive();
 }
 
-// ── YARD COUNT ────────────────────────────────────
+// ── YARD AUDIT ────────────────────────────────────
 function renderYardCount() {
   const state = getState();
   // Populate site & group dropdowns
@@ -2997,7 +2997,7 @@ function submitYardCount() {
   state.plantings.unshift({
     id: Date.now(), date, count, species,
     yardId: 'depot', siteId, groupId,
-    notes: notes || 'Via yard count'
+    notes: notes || 'Via yard audit'
   });
   saveState();
 
