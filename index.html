@@ -1113,7 +1113,9 @@ const ALLOWLIST_REF  = ref(db, 'plantTracker/allowedEmails');
 // To manage the allowlist, go to Firebase Console > Realtime Database
 // Path: plantTracker/allowedEmails
 // Format: ["email1@example.com", "email2@example.com"]
-// Fetch allowlist from database and keep in sync — overrides the fallback above
+let _allowedEmails = [];
+
+// Fetch allowlist from database and keep in sync
 onValue(ALLOWLIST_REF, (snapshot) => {
   if (snapshot.exists()) {
     const val = snapshot.val();
