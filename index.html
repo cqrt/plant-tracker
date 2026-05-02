@@ -1113,14 +1113,6 @@ const ALLOWLIST_REF  = ref(db, 'plantTracker/allowedEmails');
 // To manage the allowlist, go to Firebase Console > Realtime Database
 // Path: plantTracker/allowedEmails
 // Format: ["email1@example.com", "email2@example.com"]
-// Initialise with fallback list so auth works even before database loads.
-// The onValue listener below will override this once the database responds.
-let _allowedEmails = [
-  'le.mckenzies@gmail.com',
-  'mathew.mckenzie@icc.govt.nz',
-  'stefan.beeching@icc.govt.nz'
-];
-
 // Fetch allowlist from database and keep in sync — overrides the fallback above
 onValue(ALLOWLIST_REF, (snapshot) => {
   if (snapshot.exists()) {
@@ -1130,14 +1122,6 @@ onValue(ALLOWLIST_REF, (snapshot) => {
 }, (err) => {
   console.warn('Could not read allowlist from database:', err);
 });
-
-// ── Bootstrap: seed the allowlist into the database if it doesn't exist yet ──
-// After the database has been seeded once, this block can be safely removed.
-get(ALLOWLIST_REF).then(snap => {
-  if (!snap.exists()) {
-    set(ALLOWLIST_REF, _allowedEmails);
-  }
-}).catch(err => console.warn('Allowlist seed check failed:', err));
 
 // ── Auth helpers exposed to classic script ──────
 window._signInWithGoogle = async function() {
