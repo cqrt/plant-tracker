@@ -1080,7 +1080,7 @@
 <script type="module">
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, set, onValue }
+import { getDatabase, ref, set, onValue, get }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 import {
   getAuth,
@@ -1106,14 +1106,39 @@ const app       = initializeApp(firebaseConfig);
 const db        = getDatabase(app);
 const auth      = getAuth(app);
 const provider  = new GoogleAuthProvider();
-const STATE_REF = ref(db, 'plantTracker/state');
+const STATE_REF      = ref(db, 'plantTracker/state');
+const ALLOWLIST_REF  = ref(db, 'plantTracker/allowedEmails');
 
-// ── Access control — only these email addresses can use the app ──────────
-// Add or remove emails here. Comparison is case-insensitive.
-const ALLOWED_EMAILS = [
-  'le.mckenzies@gmail.com',        // ← replace with your Google account email
-  'mathew.mckenzie@icc.govt.nz'    // ← uncomment and add others as needed
+// ── Access control — email allowlist fetched from database ─────────────
+// To manage the allowlist, go to Firebase Console > Realtime Database
+// Path: plantTracker/allowedEmails
+// Format: ["email1@example.com", "email2@example.com"]
+let _allowedEmails = [];
+
+// Fetch allowlist from database on first load, then keep in sync
+onValue(ALLOWLIST_REF, (snapshot) => {
+  if (snapshot.exists()) {
+    const val = snapshot.val();
+    _allowedEmails = Array.isArray(val) ? val : Object.values(val);
+  }
+}, (err) => {
+  console.warn('Could not read allowlist from database:', err);
+});
+
+// ── Bootstrap: seed the allowlist if it doesn't exist yet ────────────
+// This one-time write populates the database path from the old hardcoded list
+// so existing access isn't broken. Remove this block after it has run once.
+const _SEED_EMAILS = [
+  'le.mckenzies@gmail.com',
+  'mathew.mckenzie@icc.govt.nz',
+  'stefan.beeching@icc.govt.nz'
 ];
+get(ALLOWLIST_REF).then(snap => {
+  if (!snap.exists()) {
+    set(ALLOWLIST_REF, _SEED_EMAILS);
+    _allowedEmails = _SEED_EMAILS;
+  }
+}).catch(err => console.warn('Allowlist seed check failed:', err));
 
 // ── Auth helpers exposed to classic script ──────
 window._signInWithGoogle = async function() {
@@ -1161,7 +1186,7 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     // ── Allowlist check ───────────────────────────────────────────────────
     const userEmail = (user.email || '').toLowerCase();
-    const allowed   = ALLOWED_EMAILS.map(e => e.toLowerCase());
+    const allowed   = _allowedEmails.map(e => e.toLowerCase());
     if (!allowed.includes(userEmail)) {
       await signOut(auth);
       if (errEl) errEl.textContent = '⛔ Access denied — this account is not authorised.';
