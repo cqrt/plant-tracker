@@ -1703,7 +1703,7 @@ function submitOrder() {
   const items    = {};
   let total = 0, hasError = false;
   if (!date) { toast('Please select a date'); return; }
-  getPlants().forEach(p => {
+  getActivePlants().forEach(p => {
     const val = parseInt(document.getElementById('qty-'+p.id).value) || 0;
     if (val > (state.supplier[p.id]||0)) hasError = true;
     if (val > 0) { items[p.id] = val; total += val; }
