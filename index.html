@@ -1143,69 +1143,26 @@ async function _fetchAllowlist() {
   }
 }
 
-// ── Default data — seeded to database on first run ──────────────────────
-// After the app has loaded once and seeded the database, you can remove
-// the _SEED_DEFAULTS object below to hide this data from the source code.
-// The data will continue to live in the database at plantTracker/defaults.
+// ── Default data — loaded from database ────────────────────────────────
+// Defaults are stored at plantTracker/defaults in the database.
+// To update defaults, edit them directly in Firebase Console.
 const DEFAULTS_REF = ref(db, 'plantTracker/defaults');
-const _SEED_DEFAULTS = {
-  plants: [
-    { id: 'pittos_ten',          name: 'Pittosporum', sci: 'P. tenuifolium .5lt',  traySize: 28 },
-    { id: 'pittos_eug',          name: 'Pittosporum', sci: 'P. eugenioides .5lt',  traySize: 28 },
-    { id: 'toetoe',              name: 'Austroderia', sci: 'A. richardii .5lt',    traySize: 28 },
-    { id: 'cabbage',             name: 'Cordyline',   sci: 'C. australis .5lt',    traySize: 28 },
-    { id: 'griselinia_point5lt', name: 'Griselinia',  sci: 'G. littoralis .5lt',   traySize: 28 },
-    { id: 'griselinia_2lt',      name: 'Griselinia',  sci: 'G. littoralis 2lt',    traySize: 6  },
-    { id: 'hebe',                name: 'Hebe',        sci: 'H. salicifolia .7lt',  traySize: 20 },
-    { id: 'flax_point5lt',       name: 'Phormium',    sci: 'P. tenax .5lt',        traySize: 28 },
-    { id: 'flax_2lt',            name: 'Phormium',    sci: 'P. tenax 2lt',         traySize: 6  },
-  ],
-  sites: [
-    { id:'oreti-bridge',        name:'Oreti Bridge',       expected:1076 },
-    { id:'thomsons_bush',       name:'Thomsons Bush',      expected:376  },
-    { id:'oreti_river',         name:'Oreti River',        expected:2990 },
-    { id:'waka_ama',            name:'Waka Ama',           expected:2328 },
-    { id:'omaui',               name:'Omaui',              expected:753  },
-    { id:'fosbender',           name:'Fosbender Park',     expected:424  },
-    { id:'hatchs_hill_picnic',  name:"Hatch's Hill Picnic",expected:442  },
-    { id:'hatch1',              name:"Hatch's Hill 1",     expected:0    },
-    { id:'hatch2',              name:"Hatch's Hill 2",     expected:0    },
-    { id:'oreti-rugby',         name:'Oreti Rugby Park',   expected:1058 },
-    { id:'pistol',              name:'Pistol Club',        expected:604  },
-    { id:'rodeo',               name:'Rodeo Club',         expected:0    },
-  ],
-  groups: [
-    { id:'rangers',    name:'Rangers'     },
-    { id:'pd',         name:'PD'          },
-    { id:'ymca',       name:'YMCA'        },
-    { id:'sunrise',    name:'Sunrise'     },
-    { id:'icbc',       name:'ICBC'        },
-    { id:'pistolclub', name:'Pistol Club' },
-    { id:'rodeoclub',  name:'Rodeo Club'  },
-  ],
-  supplierQty: { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 }
-};
 
-// Expose defaults to classic script (populated from DB or seed)
+// Expose defaults to classic script (populated from DB)
 window._DEFAULTS = { plants: [], sites: [], groups: [], supplierQty: {} };
 
-// Load defaults from database, seed if not present
+// Load defaults from database
 async function _loadDefaults() {
   try {
     const snap = await get(DEFAULTS_REF);
     if (snap.exists()) {
       window._DEFAULTS = snap.val();
-    } else {
-      // First run — seed defaults to database
-      await set(DEFAULTS_REF, _SEED_DEFAULTS);
-      window._DEFAULTS = JSON.parse(JSON.stringify(_SEED_DEFAULTS));
     }
   } catch (err) {
-    console.warn('Defaults load failed, using seed data:', err);
-    window._DEFAULTS = JSON.parse(JSON.stringify(_SEED_DEFAULTS));
+    console.warn('Defaults load failed:', err);
   }
 }
-// Load defaults immediately (don't await — will be ready by the time user authenticates)
+// Load defaults immediately
 _loadDefaults();
 
 // ── Auth helpers exposed to classic script ──────
