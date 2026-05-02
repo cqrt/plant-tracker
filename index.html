@@ -1113,17 +1113,35 @@ const ALLOWLIST_REF  = ref(db, 'plantTracker/allowedEmails');
 // To manage the allowlist, go to Firebase Console > Realtime Database
 // Path: plantTracker/allowedEmails
 // Format: ["email1@example.com", "email2@example.com"]
-let _allowedEmails = [];
+let _allowedEmails = null;  // null = not yet loaded
 
-// Fetch allowlist from database and keep in sync
+// Keep allowlist in sync with database for future updates
 onValue(ALLOWLIST_REF, (snapshot) => {
   if (snapshot.exists()) {
     const val = snapshot.val();
     _allowedEmails = Array.isArray(val) ? val : Object.values(val);
+  } else {
+    _allowedEmails = [];
   }
 }, (err) => {
   console.warn('Could not read allowlist from database:', err);
 });
+
+// Fetch the allowlist on demand (used by auth check before onValue fires)
+async function _fetchAllowlist() {
+  try {
+    const snap = await get(ALLOWLIST_REF);
+    if (snap.exists()) {
+      const val = snap.val();
+      _allowedEmails = Array.isArray(val) ? val : Object.values(val);
+    } else {
+      _allowedEmails = [];
+    }
+  } catch (err) {
+    console.warn('Allowlist fetch failed:', err);
+    _allowedEmails = [];
+  }
+}
 
 // ── Auth helpers exposed to classic script ──────
 window._signInWithGoogle = async function() {
@@ -1170,6 +1188,10 @@ onAuthStateChanged(auth, async (user) => {
 
   if (user) {
     // ── Allowlist check ───────────────────────────────────────────────────
+    // If allowlist hasn't loaded yet, fetch it now before checking
+    if (_allowedEmails === null) {
+      await _fetchAllowlist();
+    }
     const userEmail = (user.email || '').toLowerCase();
     const allowed   = _allowedEmails.map(e => e.toLowerCase());
     if (!allowed.includes(userEmail)) {
