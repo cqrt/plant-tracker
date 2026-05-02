@@ -1143,6 +1143,71 @@ async function _fetchAllowlist() {
   }
 }
 
+// ── Default data — seeded to database on first run ──────────────────────
+// After the app has loaded once and seeded the database, you can remove
+// the _SEED_DEFAULTS object below to hide this data from the source code.
+// The data will continue to live in the database at plantTracker/defaults.
+const DEFAULTS_REF = ref(db, 'plantTracker/defaults');
+const _SEED_DEFAULTS = {
+  plants: [
+    { id: 'pittos_ten',          name: 'Pittosporum', sci: 'P. tenuifolium .5lt',  traySize: 28 },
+    { id: 'pittos_eug',          name: 'Pittosporum', sci: 'P. eugenioides .5lt',  traySize: 28 },
+    { id: 'toetoe',              name: 'Austroderia', sci: 'A. richardii .5lt',    traySize: 28 },
+    { id: 'cabbage',             name: 'Cordyline',   sci: 'C. australis .5lt',    traySize: 28 },
+    { id: 'griselinia_point5lt', name: 'Griselinia',  sci: 'G. littoralis .5lt',   traySize: 28 },
+    { id: 'griselinia_2lt',      name: 'Griselinia',  sci: 'G. littoralis 2lt',    traySize: 6  },
+    { id: 'hebe',                name: 'Hebe',        sci: 'H. salicifolia .7lt',  traySize: 20 },
+    { id: 'flax_point5lt',       name: 'Phormium',    sci: 'P. tenax .5lt',        traySize: 28 },
+    { id: 'flax_2lt',            name: 'Phormium',    sci: 'P. tenax 2lt',         traySize: 6  },
+  ],
+  sites: [
+    { id:'oreti-bridge',        name:'Oreti Bridge',       expected:1076 },
+    { id:'thomsons_bush',       name:'Thomsons Bush',      expected:376  },
+    { id:'oreti_river',         name:'Oreti River',        expected:2990 },
+    { id:'waka_ama',            name:'Waka Ama',           expected:2328 },
+    { id:'omaui',               name:'Omaui',              expected:753  },
+    { id:'fosbender',           name:'Fosbender Park',     expected:424  },
+    { id:'hatchs_hill_picnic',  name:"Hatch's Hill Picnic",expected:442  },
+    { id:'hatch1',              name:"Hatch's Hill 1",     expected:0    },
+    { id:'hatch2',              name:"Hatch's Hill 2",     expected:0    },
+    { id:'oreti-rugby',         name:'Oreti Rugby Park',   expected:1058 },
+    { id:'pistol',              name:'Pistol Club',        expected:604  },
+    { id:'rodeo',               name:'Rodeo Club',         expected:0    },
+  ],
+  groups: [
+    { id:'rangers',    name:'Rangers'     },
+    { id:'pd',         name:'PD'          },
+    { id:'ymca',       name:'YMCA'        },
+    { id:'sunrise',    name:'Sunrise'     },
+    { id:'icbc',       name:'ICBC'        },
+    { id:'pistolclub', name:'Pistol Club' },
+    { id:'rodeoclub',  name:'Rodeo Club'  },
+  ],
+  supplierQty: { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 }
+};
+
+// Expose defaults to classic script (populated from DB or seed)
+window._DEFAULTS = { plants: [], sites: [], groups: [], supplierQty: {} };
+
+// Load defaults from database, seed if not present
+async function _loadDefaults() {
+  try {
+    const snap = await get(DEFAULTS_REF);
+    if (snap.exists()) {
+      window._DEFAULTS = snap.val();
+    } else {
+      // First run — seed defaults to database
+      await set(DEFAULTS_REF, _SEED_DEFAULTS);
+      window._DEFAULTS = JSON.parse(JSON.stringify(_SEED_DEFAULTS));
+    }
+  } catch (err) {
+    console.warn('Defaults load failed, using seed data:', err);
+    window._DEFAULTS = JSON.parse(JSON.stringify(_SEED_DEFAULTS));
+  }
+}
+// Load defaults immediately (don't await — will be ready by the time user authenticates)
+_loadDefaults();
+
 // ── Auth helpers exposed to classic script ──────
 window._signInWithGoogle = async function() {
   const errEl = document.getElementById('auth-error');
@@ -1330,83 +1395,56 @@ function _setSyncStatus(status) {
      APP LOGIC  (classic script)
 ════════════════════════════════════════════════ -->
 <script>
-// ── INITIAL DATA ──────────────────────────────────────────────────────────
-const DEFAULT_PLANTS = [
-  { id: 'pittos_ten',          name: 'Pittosporum', sci: 'P. tenuifolium .5lt',  traySize: 28 },
-  { id: 'pittos_eug',          name: 'Pittosporum', sci: 'P. eugenioides .5lt',  traySize: 28 },
-  { id: 'toetoe',              name: 'Austroderia', sci: 'A. richardii .5lt',    traySize: 28 },
-  { id: 'cabbage',             name: 'Cordyline',   sci: 'C. australis .5lt',    traySize: 28 },
-  { id: 'griselinia_point5lt', name: 'Griselinia',  sci: 'G. littoralis .5lt',   traySize: 28 },
-  { id: 'griselinia_2lt',      name: 'Griselinia',  sci: 'G. littoralis 2lt',    traySize: 6  },
-  { id: 'hebe',                name: 'Hebe',        sci: 'H. salicifolia .7lt',  traySize: 20 },
-  { id: 'flax_point5lt',       name: 'Phormium',    sci: 'P. tenax .5lt',        traySize: 28 },
-  { id: 'flax_2lt',            name: 'Phormium',    sci: 'P. tenax 2lt',         traySize: 6  },
-];
+// ── INITIAL DATA — loaded from Firebase Database ─────────────────────────
+// Defaults are fetched from plantTracker/defaults in the database.
+// The Firebase module sets window._DEFAULTS before the DB listener fires.
+
+function _getDefaults() { return window._DEFAULTS || { plants:[], sites:[], groups:[], supplierQty:{} }; }
 
 // getPlants() returns the full list including inactive; use for settings/admin/data integrity.
 function getPlants() {
   return (window.appState && window.appState.plants && window.appState.plants.length)
-    ? window.appState.plants : DEFAULT_PLANTS;
+    ? window.appState.plants : _getDefaults().plants;
 }
 // getActivePlants() returns only species with active !== false; use in all operational views.
 function getActivePlants() {
   return getPlants().filter(p => p.active !== false);
 }
 
-const DEFAULT_SUPPLIER_QTY = { pittos_ten:4116, pittos_eug:644, toetoe:0, cabbage:1598, griselinia_point5lt:0, griselinia_2lt:1078, hebe:725, flax_point5lt:1428, flax_2lt:462 };
-
-function _makeStockObj(qty) {
+function _makeStockObj(plants, qty) {
   const obj = {};
-  DEFAULT_PLANTS.forEach(p => { obj[p.id] = qty[p.id] || 0; });
+  plants.forEach(p => { obj[p.id] = qty[p.id] || 0; });
   return obj;
 }
 
-const DEFAULT_SUPPLIER    = _makeStockObj(DEFAULT_SUPPLIER_QTY);
-const DEFAULT_DEPOT       = _makeStockObj({});
-const DEFAULT_CORRECTIONS = _makeStockObj({});
-window._DEFAULT_CORRECTIONS = DEFAULT_CORRECTIONS;
-window._DEFAULT_PLANTS      = DEFAULT_PLANTS;
-
-const DEFAULT_SITES = [
-  { id:'oreti-bridge',        name:'Oreti Bridge',       expected:1076 },
-  { id:'thomsons_bush',       name:'Thomsons Bush',      expected:376  },
-  { id:'oreti_river',         name:'Oreti River',        expected:2990 },
-  { id:'waka_ama',            name:'Waka Ama',           expected:2328 },
-  { id:'omaui',               name:'Omaui',              expected:753  },
-  { id:'fosbender',           name:'Fosbender Park',     expected:424  },
-  { id:'hatchs_hill_picnic',  name:"Hatch's Hill Picnic",expected:442  },
-  { id:'hatch1',              name:"Hatch's Hill 1",     expected:0    },
-  { id:'hatch2',              name:"Hatch's Hill 2",     expected:0    },
-  { id:'oreti-rugby',         name:'Oreti Rugby Park',   expected:1058 },
-  { id:'pistol',              name:'Pistol Club',        expected:604  },
-  { id:'rodeo',               name:'Rodeo Club',         expected:0    },
-];
-const DEFAULT_GROUPS = [
-  { id:'rangers',    name:'Rangers'     },
-  { id:'pd',         name:'PD'          },
-  { id:'ymca',       name:'YMCA'        },
-  { id:'sunrise',    name:'Sunrise'     },
-  { id:'icbc',       name:'ICBC'        },
-  { id:'pistolclub', name:'Pistol Club' },
-  { id:'rodeoclub',  name:'Rodeo Club'  },
-];
+// Expose for Firebase module fallbacks
+window._DEFAULT_PLANTS      = _getDefaults().plants;
+window._DEFAULT_CORRECTIONS = _makeStockObj(_getDefaults().plants, {});
 
 // ── STATE ────────────────────────────────────────
+// This initial state is a placeholder — the DB listener overwrites it
+// after authentication. It uses defaults from the database if available.
 const today = new Date().toISOString().split('T')[0];
+const _initPlants    = _getDefaults().plants;
+const _initSites     = _getDefaults().sites;
+const _initGroups    = _getDefaults().groups;
+const _initSupplier  = _makeStockObj(_initPlants, _getDefaults().supplierQty);
+const _initDepot     = _makeStockObj(_initPlants, {});
+const _initCorrect   = _makeStockObj(_initPlants, {});
 window.appState = {
   seasonName:       'Season ' + new Date().getFullYear(),
   seasonStart:      today,
-  plants:           JSON.parse(JSON.stringify(DEFAULT_PLANTS)),
-  startingSupplier: Object.assign({}, DEFAULT_SUPPLIER),
-  supplier:         Object.assign({}, DEFAULT_SUPPLIER),
-  depot:            Object.assign({}, DEFAULT_DEPOT),
-  corrections:      Object.assign({}, DEFAULT_CORRECTIONS),
+  plants:           JSON.parse(JSON.stringify(_initPlants)),
+  startingSupplier: Object.assign({}, _initSupplier),
+  supplier:         Object.assign({}, _initSupplier),
+  depot:            Object.assign({}, _initDepot),
+  corrections:      Object.assign({}, _initCorrect),
   orders:           [],
   transfers:        [],
   plantings:        [],
   archives:         [],
-  sites:            JSON.parse(JSON.stringify(DEFAULT_SITES)),
-  groups:           JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
+  sites:            JSON.parse(JSON.stringify(_initSites)),
+  groups:           JSON.parse(JSON.stringify(_initGroups)),
 };
 
 function getState() { return window.appState; }
@@ -2630,17 +2668,26 @@ function confirmFactoryReset() {
   if(document.getElementById('factory-reset-confirm').value.trim()!=='RESET'){
     toast('Type RESET (all caps) to confirm'); return;
   }
-  const today=new Date().toISOString().split('T')[0];
-  window.appState={
-    seasonName:'Season '+new Date().getFullYear(), seasonStart:today,
-    plants:          JSON.parse(JSON.stringify(DEFAULT_PLANTS)),
-    startingSupplier:Object.assign({},DEFAULT_SUPPLIER),
-    supplier:        Object.assign({},DEFAULT_SUPPLIER),
-    depot:           Object.assign({},DEFAULT_DEPOT),
-    corrections:     Object.assign({},DEFAULT_CORRECTIONS),
-    orders:[],transfers:[],plantings:[],archives:[],
-    sites: JSON.parse(JSON.stringify(DEFAULT_SITES)),
-    groups:JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
+  const today = new Date().toISOString().split('T')[0];
+  const defs  = _getDefaults();
+  const plants = defs.plants;
+  const supplier = _makeStockObj(plants, defs.supplierQty);
+  const depot = _makeStockObj(plants, {});
+  const corrections = _makeStockObj(plants, {});
+  window.appState = {
+    seasonName:       'Season ' + new Date().getFullYear(),
+    seasonStart:      today,
+    plants:           JSON.parse(JSON.stringify(plants)),
+    startingSupplier: Object.assign({}, supplier),
+    supplier:         Object.assign({}, supplier),
+    depot:            Object.assign({}, depot),
+    corrections:      Object.assign({}, corrections),
+    orders:           [],
+    transfers:        [],
+    plantings:        [],
+    archives:         [],
+    sites:            JSON.parse(JSON.stringify(defs.sites)),
+    groups:           JSON.parse(JSON.stringify(defs.groups)),
   };
   saveState();
   closeFactoryResetModal();
