@@ -1554,6 +1554,14 @@ function showPage(name) {
     settings:   renderSettings,
   };
   if (renders[name]) renders[name]();
+  const pageLabels = {
+    dashboard:'Dashboard', order:'New Order', history:'Order History',
+    plantings:'Plantings', sites:'Sites', yardcount:'Yard Audit',
+    archives:'Archives', settings:'Settings',
+  };
+  const lbl = document.getElementById('nav-page-label');
+  if (lbl) lbl.textContent = pageLabels[name] || name;
+  closeMobileNav();
 }
 
 // ── USER DROPDOWN & MOBILE NAV ───────────────────
