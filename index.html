@@ -78,16 +78,6 @@
     display: flex;
     gap: 2px;
     align-items: center;
-    min-width: 0;
-    flex: 1;
-  }
-  .nav-right {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-    justify-content: flex-end;
   }
   .nav-tab {
     background: none;
@@ -207,7 +197,7 @@
   .auth-signout-tip { font-size: 10px; color: var(--green-400); }
 
   /* ── USER DROPDOWN ── */
-  .user-menu-wrap { position: relative; margin-left: 8px; flex-shrink: 0; }
+  .user-menu-wrap { position: relative; margin-left: 8px; }
   .user-menu-wrap .auth-user-bar { margin-left: 0; }
   .user-dropdown {
     display: none;
@@ -505,8 +495,7 @@
   .transfer-arrow { color:var(--amber); font-size:16px; font-weight:500; }
 
   @media(max-width:600px){
-    .nav-right { flex: 1; min-width: 0; justify-content: flex-end; }
-    .nav-tabs{ overflow-x:auto; flex: 1; min-width: 0; }
+    .nav-tabs{ overflow-x:auto; }
     .nav-tab { font-size:12px; padding:10px 10px; }
     .nav-brand h1 { font-size:15px; }
   }
@@ -721,18 +710,16 @@
         <div id="nav-season-label" style="font-size:11px;color:var(--green-300);letter-spacing:0.3px;margin-top:1px;"></div>
       </div>
     </div>
-    <div class="nav-right">
-      <div class="nav-tabs">
-        <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
-        <button class="nav-tab" onclick="showPage('order')">New Order</button>
-        <button class="nav-tab" onclick="showPage('history')">Order History</button>
-        <button class="nav-tab" onclick="showPage('plantings')">Plantings</button>
-        <button class="nav-tab" onclick="showPage('sites')">Sites</button>
-        <button class="nav-tab" onclick="showPage('yardcount')">Yard Audit</button>
-        <div id="sync-indicator" class="status-online" title="Database sync status">
-          <div class="sync-dot"></div>
-          <span id="sync-label">Live</span>
-        </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
+      <button class="nav-tab" onclick="showPage('order')">New Order</button>
+      <button class="nav-tab" onclick="showPage('history')">Order History</button>
+      <button class="nav-tab" onclick="showPage('plantings')">Plantings</button>
+      <button class="nav-tab" onclick="showPage('sites')">Sites</button>
+      <button class="nav-tab" onclick="showPage('yardcount')">Yard Audit</button>
+      <div id="sync-indicator" class="status-online" title="Database sync status">
+        <div class="sync-dot"></div>
+        <span id="sync-label">Live</span>
       </div>
       <!-- User menu dropdown -->
       <div class="user-menu-wrap" id="user-menu-wrap" style="display:none;">
