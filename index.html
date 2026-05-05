@@ -494,10 +494,92 @@
   .transfer-log-item:last-child { border-bottom:none; }
   .transfer-arrow { color:var(--amber); font-size:16px; font-weight:500; }
 
-  @media(max-width:600px){
-    .nav-tabs{ overflow-x:auto; }
-    .nav-tab { font-size:12px; padding:10px 10px; }
-    .nav-brand h1 { font-size:15px; }
+  /* ── HAMBURGER BUTTON ── */
+  .nav-hamburger {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 6px;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+    margin-left: 4px;
+  }
+  .nav-hamburger span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--green-200);
+    border-radius: 2px;
+    transition: transform 0.22s, opacity 0.22s;
+  }
+  .nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+  .nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* ── MOBILE PAGE LABEL ── */
+  .nav-page-label {
+    display: none;
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--green-100);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 8px;
+  }
+
+  @media(max-width:700px) {
+    .nav-inner { padding: 0 12px; }
+    .nav-brand  { flex-shrink: 0; }
+    .nav-page-label { display: block; }
+
+    /* Hide desktop tabs; make them a dropdown panel */
+    .nav-tabs {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      flex-direction: column;
+      background: var(--green-900);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      z-index: 99;
+      padding: 4px 0 8px;
+    }
+    .nav-tabs.mobile-open { display: flex; }
+
+    .nav-tab {
+      width: 100%;
+      text-align: left;
+      padding: 14px 20px;
+      border-radius: 0;
+      font-size: 15px;
+      color: var(--green-200);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .nav-tab.active {
+      color: white;
+      background: rgba(255,255,255,0.1);
+      border-left: 3px solid var(--green-400);
+      padding-left: 17px;
+    }
+
+    #sync-indicator {
+      padding: 8px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      margin-top: 4px;
+    }
+
+    /* Avatar pill: hide text labels on mobile to save space */
+    .auth-display-name,
+    .auth-signout-tip { display: none; }
+    .auth-user-bar { padding: 5px 8px; margin-left: 0; }
+
+    .nav-hamburger { display: flex; }
   }
 
   /* ── YARD AUDIT SCRATCHPAD ── */
@@ -710,7 +792,8 @@
         <div id="nav-season-label" style="font-size:11px;color:var(--green-300);letter-spacing:0.3px;margin-top:1px;"></div>
       </div>
     </div>
-    <div class="nav-tabs">
+    <span class="nav-page-label" id="nav-page-label">Dashboard</span>
+    <div class="nav-tabs" id="nav-tabs">
       <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
       <button class="nav-tab" onclick="showPage('order')">New Order</button>
       <button class="nav-tab" onclick="showPage('history')">Order History</button>
@@ -722,7 +805,6 @@
         <span id="sync-label">Live</span>
       </div>
     </div>
-      <!-- User menu dropdown -->
       <div class="user-menu-wrap" id="user-menu-wrap" style="display:none;">
         <div class="auth-user-bar" id="auth-user-bar" onclick="toggleUserMenu()" title="Menu">
           <div class="auth-avatar-placeholder" id="auth-avatar-placeholder">?</div>
@@ -740,6 +822,9 @@
           <button class="user-dropdown-item danger" onclick="closeUserMenu();window._signOut()"><span class="dd-icon">↩</span> Sign out</button>
         </div>
       </div>
+      <button class="nav-hamburger" id="nav-hamburger" onclick="toggleMobileNav()" aria-label="Open navigation">
+        <span></span><span></span><span></span>
+      </button>
   </div>
 </nav>
 
@@ -1438,6 +1523,15 @@ window._reRenderActive = function() {
     settings:   renderSettings,
   };
   if (renders[name]) renders[name]();
+  // Update mobile page label and close mobile nav
+  const pageLabels = {
+    dashboard:'Dashboard', order:'New Order', history:'Order History',
+    plantings:'Plantings', sites:'Sites', yardcount:'Yard Audit',
+    archives:'Archives', settings:'Settings',
+  };
+  const lbl = document.getElementById('nav-page-label');
+  if (lbl) lbl.textContent = pageLabels[name] || name;
+  closeMobileNav();
 };
 
 // ── NAV ───────────────────────────────────────────
@@ -1462,17 +1556,35 @@ function showPage(name) {
   if (renders[name]) renders[name]();
 }
 
-// ── USER DROPDOWN ─────────────────────────────────
+// ── USER DROPDOWN & MOBILE NAV ───────────────────
 function toggleUserMenu() {
   document.getElementById('user-menu-wrap').classList.toggle('open');
 }
 function closeUserMenu() {
   document.getElementById('user-menu-wrap').classList.remove('open');
 }
-// Close dropdown when clicking outside
+function toggleMobileNav() {
+  const tabs   = document.getElementById('nav-tabs');
+  const burger = document.getElementById('nav-hamburger');
+  const isOpen = tabs.classList.toggle('mobile-open');
+  burger.classList.toggle('open', isOpen);
+}
+function closeMobileNav() {
+  const tabs   = document.getElementById('nav-tabs');
+  const burger = document.getElementById('nav-hamburger');
+  if (tabs)   tabs.classList.remove('mobile-open');
+  if (burger) burger.classList.remove('open');
+}
+// Close dropdowns when clicking outside
 document.addEventListener('click', function(e) {
-  const wrap = document.getElementById('user-menu-wrap');
-  if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+  const wrap   = document.getElementById('user-menu-wrap');
+  const burger = document.getElementById('nav-hamburger');
+  const tabs   = document.getElementById('nav-tabs');
+  if (wrap   && !wrap.contains(e.target))   wrap.classList.remove('open');
+  if (burger && tabs && !burger.contains(e.target) && !tabs.contains(e.target)) {
+    tabs.classList.remove('mobile-open');
+    burger.classList.remove('open');
+  }
 });
 
 function updateSeasonLabel() {
