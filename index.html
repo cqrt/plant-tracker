@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Plant Stock Tracker</title>
+<title>ICC Plant Stock</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -761,7 +761,7 @@
 <div id="auth-screen">
   <div class="auth-box">
     <span class="auth-leaf">🌿</span>
-    <div class="auth-title">Plant Stock Tracker</div>
+    <div class="auth-title">ICC Plant Stock</div>
     <div class="auth-sub">Sign in to access your plant inventory and sync data across devices.</div>
     <button class="btn-google" onclick="window._signInWithGoogle()">
       <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -788,7 +788,7 @@
     <div class="nav-brand">
       <span class="leaf">🌿</span>
       <div>
-        <h1>Plant Stock Tracker</h1>
+        <h1>ICC Plant Stock</h1>
         <div id="nav-season-label" style="font-size:11px;color:var(--green-300);letter-spacing:0.3px;margin-top:1px;"></div>
       </div>
     </div>
@@ -1271,7 +1271,7 @@ window._signInWithGoogle = async function() {
 };
 
 window._signOut = async function() {
-  if (!confirm('Sign out of Plant Stock Tracker?')) return;
+  if (!confirm('Sign out of ICC Plant Stock?')) return;
   await signOut(auth);
 };
 
@@ -2665,7 +2665,7 @@ function exportArchivePDF(idx) {
   </div>
 
   <div class="report-footer">
-    Generated on ${generatedFmt} • Plant Stock Tracker
+    Generated on ${generatedFmt} • ICC Plant Stock
   </div>
 </body>
 </html>`;
