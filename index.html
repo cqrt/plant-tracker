@@ -1734,8 +1734,8 @@ function submitTransfer() {
   const state=getState();
   const items={};
   let total=0, hasError=false;
-  getPlants().forEach(p=>{
-    const val=parseInt(document.getElementById('tr-'+p.id).value)||0;
+  getActivePlants().forEach(p=>{
+    const val=parseInt(document.getElementById('tr-'+p.id)?.value)||0;
     if(val>(state.depot[p.id]||0)) hasError=true;
     if(val>0){ items[p.id]=val; total+=val; }
   });
@@ -2043,15 +2043,15 @@ function submitPlanting() {
   if(!groupId) { toast('Please select a group'); return; }
   const species={};
   let count=0, hasError=false;
-  getPlants().forEach(p=>{
-    const val  =parseInt(document.getElementById('sp-'+p.id).value)||0;
+  getActivePlants().forEach(p=>{
+    const val  =parseInt(document.getElementById('sp-'+p.id)?.value)||0;
     const avail=state[yardId]?.[p.id]||0;
     if(val>avail) hasError=true;
     if(val>0){ species[p.id]=val; count+=val; }
   });
   if(hasError) { toast('⚠ Quantity exceeds available yard stock'); return; }
   if(count<1)  { toast('Enter at least one plant quantity');        return; }
-  getPlants().forEach(p=>{
+  getActivePlants().forEach(p=>{
     const qty=species[p.id]||0;
     if(qty>0) state[yardId][p.id]=(state[yardId][p.id]||0)-qty;
   });
@@ -2060,7 +2060,7 @@ function submitPlanting() {
   const site     =state.sites.find(s=>s.id===siteId);
   const yardLabel=yardId==='corrections'?'Corrections':'Queens Park';
   toast(`✓ Logged ${count.toLocaleString()} plants from ${yardLabel} at ${site?site.name:siteId}`);
-  getPlants().forEach(p=>{ document.getElementById('sp-'+p.id).value=0; });
+  getActivePlants().forEach(p=>{ document.getElementById('sp-'+p.id).value=0; });
   document.getElementById('planting-notes').value='';
   document.getElementById('planting-running-total').textContent='0';
   renderPlantings();
