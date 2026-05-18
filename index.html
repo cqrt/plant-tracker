@@ -585,7 +585,7 @@
   /* ── YARD AUDIT SCRATCHPAD ── */
   .yardcount-row {
     display: grid;
-    grid-template-columns: 1fr 90px 90px 90px;
+    grid-template-columns: 1fr 90px 160px 90px 90px;
     align-items: center;
     gap: 12px;
     padding: 12px 14px;
@@ -594,20 +594,31 @@
     border-radius: 10px;
     margin-bottom: 8px;
   }
-  @media(max-width:520px) {
-    .yardcount-row { grid-template-columns: 1fr 76px 76px 70px; gap: 7px; padding: 10px 10px; }
+  @media(max-width:600px) {
+    .yardcount-row { grid-template-columns: 1fr 64px 130px 64px 64px; gap: 6px; padding: 10px 10px; }
   }
   .yardcount-sys-val {
     font-family: 'Playfair Display', serif;
     font-size: 18px; color: var(--text-mid);
     text-align: right;
   }
+  .yc-count-cell { display: flex; flex-direction: column; gap: 5px; }
+  .yc-count-row  { display: flex; align-items: center; gap: 5px; }
+  .yc-count-label {
+    font-size: 10px; color: var(--text-light); white-space: nowrap;
+    min-width: 42px; text-align: right; flex-shrink: 0;
+  }
   .yardcount-row input[type="number"] {
-    width: 80px; text-align: right;
+    flex: 1; min-width: 0; text-align: right;
     font-family: 'Playfair Display', serif;
-    font-size: 18px; color: var(--amber);
+    font-size: 16px; color: var(--amber);
     border-color: var(--green-200); background: white;
-    padding: 6px 8px;
+    padding: 5px 7px;
+  }
+  .yardcount-counted {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--text-mid);
+    text-align: right;
   }
   .yardcount-diff {
     font-family: 'Playfair Display', serif;
@@ -994,10 +1005,11 @@
       </div>
       <p class="form-section-title">Count plants present</p>
       <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Enter how many plants you can see for each species. The <strong style="color:var(--green-700);">Missing</strong> column shows what will be logged as planted.</p>
-      <div style="display:grid;grid-template-columns:1fr 90px 90px 90px;gap:6px 12px;padding:0 14px 6px;margin-bottom:2px;">
+      <div style="display:grid;grid-template-columns:1fr 90px 160px 90px 90px;gap:6px 12px;padding:0 14px 6px;margin-bottom:2px;">
         <div class="yc-col-head">Species</div>
         <div class="yc-col-head" style="text-align:right;">In depot</div>
-        <div class="yc-col-head" style="text-align:right;">Counted</div>
+        <div class="yc-col-head">Trays &amp; loose</div>
+        <div class="yc-col-head" style="text-align:right;">Total</div>
         <div class="yc-col-head" style="text-align:right;">Missing</div>
       </div>
       <div id="yardcount-grid"></div>
@@ -3073,10 +3085,22 @@ function renderYardCountGrid() {
       <div>
         <div class="plant-name">${p.name}</div>
         <div style="font-size:11px;color:var(--text-light);font-style:italic;margin-top:1px;">${p.sci}</div>
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">${p.traySize}/tray</div>
       </div>
       <div class="yardcount-sys-val">${inDepot.toLocaleString()}</div>
-      <input type="number" min="0" step="1" value="" placeholder="—"
-        id="yc-${p.id}" oninput="updateYardCountDiff()" />
+      <div class="yc-count-cell">
+        <div class="yc-count-row">
+          <span class="yc-count-label">Trays</span>
+          <input type="number" min="0" step="1" value="" placeholder="—"
+            id="yc-trays-${p.id}" oninput="updateYardCountDiff()" />
+        </div>
+        <div class="yc-count-row">
+          <span class="yc-count-label">+ Loose</span>
+          <input type="number" min="0" step="1" value="" placeholder="—"
+            id="yc-loose-${p.id}" oninput="updateYardCountDiff()" />
+        </div>
+      </div>
+      <div class="yardcount-counted" id="yc-counted-${p.id}">—</div>
       <div class="yardcount-diff zero" id="yc-diff-${p.id}">—</div>
     `;
     grid.appendChild(row);
@@ -3088,17 +3112,28 @@ function updateYardCountDiff() {
   const state    = getState();
   let   totalDiff = 0;
   getActivePlants().forEach(p => {
-    const inDepot = state.depot[p.id] || 0;
-    const raw     = document.getElementById('yc-' + p.id)?.value;
-    const diffEl  = document.getElementById('yc-diff-' + p.id);
+    const inDepot   = state.depot[p.id] || 0;
+    const traysRaw  = document.getElementById('yc-trays-' + p.id)?.value;
+    const looseRaw  = document.getElementById('yc-loose-' + p.id)?.value;
+    const diffEl    = document.getElementById('yc-diff-' + p.id);
+    const countedEl = document.getElementById('yc-counted-' + p.id);
     if (!diffEl) return;
-    if (raw === '' || raw === undefined || raw === null) {
+
+    const traysEmpty = traysRaw === '' || traysRaw == null;
+    const looseEmpty = looseRaw === '' || looseRaw == null;
+    if (traysEmpty && looseEmpty) {
       diffEl.className = 'yardcount-diff zero';
       diffEl.textContent = '—';
+      if (countedEl) countedEl.textContent = '—';
       return;
     }
-    const counted = Math.max(0, parseInt(raw) || 0);
-    const diff    = inDepot - counted;
+
+    const trayCount = Math.max(0, parseInt(traysRaw) || 0);
+    const loose     = Math.max(0, parseInt(looseRaw) || 0);
+    const counted   = trayCount * p.traySize + loose;
+    if (countedEl) countedEl.textContent = counted.toLocaleString();
+
+    const diff = inDepot - counted;
     if (diff > 0) {
       diffEl.className   = 'yardcount-diff';
       diffEl.textContent = diff.toLocaleString();
@@ -3130,12 +3165,17 @@ function submitYardCount() {
   let   hasOver  = false;
   let   hasEntry = false;
 
-  getPlants().forEach(p => {
-    const raw = document.getElementById('yc-' + p.id)?.value;
-    if (raw === '' || raw === undefined || raw === null) return;
+  getActivePlants().forEach(p => {
+    const traysRaw  = document.getElementById('yc-trays-' + p.id)?.value;
+    const looseRaw  = document.getElementById('yc-loose-' + p.id)?.value;
+    const traysEmpty = traysRaw === '' || traysRaw == null;
+    const looseEmpty = looseRaw === '' || looseRaw == null;
+    if (traysEmpty && looseEmpty) return;
     hasEntry = true;
-    const inDepot = state.depot[p.id] || 0;
-    const counted = Math.max(0, parseInt(raw) || 0);
+    const inDepot   = state.depot[p.id] || 0;
+    const trayCount = Math.max(0, parseInt(traysRaw) || 0);
+    const loose     = Math.max(0, parseInt(looseRaw) || 0);
+    const counted   = trayCount * p.traySize + loose;
     if (counted > inDepot) { hasOver = true; return; }
     const diff = inDepot - counted;
     if (diff > 0) { species[p.id] = diff; count += diff; }
@@ -3161,9 +3201,11 @@ function submitYardCount() {
   toast(`✓ Logged ${count.toLocaleString()} missing plants from Queens Park at ${site ? site.name : siteId}`);
 
   // Reset all counted inputs
-  getPlants().forEach(p => {
-    const el = document.getElementById('yc-' + p.id);
-    if (el) el.value = '';
+  getActivePlants().forEach(p => {
+    const el1 = document.getElementById('yc-trays-' + p.id);
+    const el2 = document.getElementById('yc-loose-' + p.id);
+    if (el1) el1.value = '';
+    if (el2) el2.value = '';
   });
   updateYardCountDiff();
 }
