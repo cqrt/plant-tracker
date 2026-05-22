@@ -1906,8 +1906,9 @@ function renderHistory() {
           <div style="font-weight:500;font-size:14px;margin-bottom:2px;">${order.location||'Unlabelled order'}</div>
           <div class="order-date">${order.date ? formatDisplayDate(order.date) : formatDate(order.ts)}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span class="order-total">${order.total.toLocaleString()} plants</span>
+          <button class="btn" style="background:var(--green-100);color:var(--green-700);border:1px solid var(--green-200);font-size:12px;padding:6px 12px;" onclick="reorderOrder(${idx})">↻ Reorder</button>
           <button class="btn btn-danger" onclick="deleteOrder(${idx})">✕</button>
         </div>
       </div>
@@ -1916,6 +1917,40 @@ function renderHistory() {
     `;
     list.appendChild(card);
   });
+}
+
+function reorderOrder(idx) {
+  const state = getState();
+  const order = state.orders[idx];
+  if (!order) return;
+
+  // Navigate to the order form — this re-renders it with zeroed inputs
+  showPage('order');
+
+  // Override date to today
+  const dateEl = document.getElementById('order-date');
+  if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+
+  // Copy location and notes
+  const locEl  = document.getElementById('order-location');
+  const noteEl = document.getElementById('order-notes');
+  if (locEl)  locEl.value  = order.location || '';
+  if (noteEl) noteEl.value = order.notes    || '';
+
+  // Fill in quantities for each species that was in the original order
+  Object.entries(order.items).forEach(([id, qty]) => {
+    const el = document.getElementById('qty-' + id);
+    if (!el) return;   // species may be hidden or deleted
+    el.value = qty;
+    const p  = getActivePlants().find(x => x.id === id);
+    if (p) {
+      const avail = state.supplier[p.id] || 0;
+      updateOrderHints(id, avail, p.traySize);
+    }
+  });
+
+  updateRunningTotal();
+  toast('↻ Order quantities loaded — adjust if needed and submit');
 }
 
 function deleteOrder(idx) {
