@@ -584,53 +584,79 @@
 
   /* ── YARD AUDIT SCRATCHPAD ── */
   .yardcount-row {
-    display: grid;
-    grid-template-columns: 1fr 90px 160px 90px 90px;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
     background: var(--cream-100);
     border: 1px solid var(--cream-300);
     border-radius: 10px;
+    padding: 10px 12px;
     margin-bottom: 8px;
   }
-  @media(max-width:600px) {
-    .yardcount-row { grid-template-columns: 1fr 64px 130px 64px 64px; gap: 6px; padding: 10px 10px; }
+  /* Species header — name | sci | tray badge */
+  .yc-species-bar {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-bottom: 9px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--cream-300);
   }
-  .yardcount-sys-val {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px; color: var(--text-mid);
-    text-align: right;
+  .yc-species-bar .plant-name { font-size: 13px; flex-shrink: 0; }
+  .yc-species-bar .plant-sci  { font-size: 11px; flex-shrink: 0; }
+  .yc-tray-badge {
+    margin-left: auto;
+    font-size: 10px; color: var(--text-light);
+    background: var(--cream-200); padding: 2px 7px;
+    border-radius: 10px; white-space: nowrap;
   }
-  .yc-count-cell { display: flex; flex-direction: column; gap: 5px; }
-  .yc-count-row  { display: flex; align-items: center; gap: 5px; }
-  .yc-count-label {
-    font-size: 10px; color: var(--text-light); white-space: nowrap;
-    min-width: 42px; text-align: right; flex-shrink: 0;
+  /* Data row — Depot | Inputs (flex) | Total | Missing */
+  .yc-data-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  .yc-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .yc-cell-label {
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--text-light); white-space: nowrap;
+  }
+  /* The two stacked count inputs share available space */
+  .yc-cell-inputs {
+    flex: 1;
+    display: flex;
+    gap: 5px;
+    min-width: 0;
+  }
+  .yc-input-col {
+    flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0;
   }
   .yardcount-row input[type="number"] {
-    flex: 1; min-width: 0; text-align: right;
+    width: 100%; min-width: 0; text-align: right;
     font-family: 'Playfair Display', serif;
     font-size: 16px; color: var(--amber);
     border-color: var(--green-200); background: white;
-    padding: 5px 7px;
+    padding: 5px 6px;
+  }
+  .yardcount-sys-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px; color: var(--text-mid);
   }
   .yardcount-counted {
     font-family: 'Playfair Display', serif;
-    font-size: 18px; color: var(--text-mid);
-    text-align: right;
+    font-size: 16px; color: var(--text-mid);
   }
   .yardcount-diff {
     font-family: 'Playfair Display', serif;
-    font-size: 20px; color: var(--green-700);
-    text-align: right; font-weight: 500;
+    font-size: 18px; color: var(--green-700); font-weight: 500;
   }
-  .yardcount-diff.zero { color: var(--text-light); font-size: 16px; font-weight: 400; }
-  .yardcount-diff.over { color: var(--red); font-size: 13px; font-weight: 500; }
-  .yc-col-head {
-    font-size: 10px; font-weight: 500; letter-spacing: 0.6px;
-    text-transform: uppercase; color: var(--text-light);
-  }
+  .yardcount-diff.zero { color: var(--text-light); font-size: 14px; font-weight: 400; }
+  .yardcount-diff.over { color: var(--red); font-size: 12px; font-weight: 500; }
+  .yc-col-head { display: none; } /* column header strip no longer needed */
 
   /* ── PRINT STYLES FOR PDF EXPORT ── */
   @media print {
@@ -3117,26 +3143,37 @@ function renderYardCountGrid() {
     const row     = document.createElement('div');
     row.className = 'yardcount-row';
     row.innerHTML = `
-      <div>
-        <div class="plant-name">${p.name}</div>
-        <div style="font-size:11px;color:var(--text-light);font-style:italic;margin-top:1px;">${p.sci}</div>
-        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">${p.traySize}/tray</div>
+      <div class="yc-species-bar">
+        <span class="plant-name">${p.name}</span>
+        <span class="plant-sci">${p.sci}</span>
+        <span class="yc-tray-badge">${p.traySize}/tray</span>
       </div>
-      <div class="yardcount-sys-val">${inDepot.toLocaleString()}</div>
-      <div class="yc-count-cell">
-        <div class="yc-count-row">
-          <span class="yc-count-label">Trays</span>
-          <input type="number" min="0" step="1" value="" placeholder="—"
-            id="yc-trays-${p.id}" oninput="updateYardCountDiff()" />
+      <div class="yc-data-bar">
+        <div class="yc-cell">
+          <div class="yc-cell-label">Depot</div>
+          <div class="yardcount-sys-val">${inDepot.toLocaleString()}</div>
         </div>
-        <div class="yc-count-row">
-          <span class="yc-count-label">+ Loose</span>
-          <input type="number" min="0" step="1" value="" placeholder="—"
-            id="yc-loose-${p.id}" oninput="updateYardCountDiff()" />
+        <div class="yc-cell-inputs">
+          <div class="yc-input-col">
+            <div class="yc-cell-label">Trays</div>
+            <input type="number" min="0" step="1" value="" placeholder="—"
+              id="yc-trays-${p.id}" oninput="updateYardCountDiff()" />
+          </div>
+          <div class="yc-input-col">
+            <div class="yc-cell-label">Loose</div>
+            <input type="number" min="0" step="1" value="" placeholder="—"
+              id="yc-loose-${p.id}" oninput="updateYardCountDiff()" />
+          </div>
+        </div>
+        <div class="yc-cell">
+          <div class="yc-cell-label">Total</div>
+          <div class="yardcount-counted" id="yc-counted-${p.id}">—</div>
+        </div>
+        <div class="yc-cell">
+          <div class="yc-cell-label">Missing</div>
+          <div class="yardcount-diff zero" id="yc-diff-${p.id}">—</div>
         </div>
       </div>
-      <div class="yardcount-counted" id="yc-counted-${p.id}">—</div>
-      <div class="yardcount-diff zero" id="yc-diff-${p.id}">—</div>
     `;
     grid.appendChild(row);
   });
