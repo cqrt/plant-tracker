@@ -2956,39 +2956,80 @@ function renderSitesMgmt() {
   const state     = getState();
   const container = document.getElementById('sites-mgmt-list');
   if (!container) return;
+  container.innerHTML = '';
+
   if (!state.sites.length) {
     container.innerHTML = '<div class="empty-state" style="padding:16px 0;">No sites configured.</div>';
-    return;
+  } else {
+    const table = document.createElement('table');
+    table.className = 'mgmt-table';
+    table.innerHTML = '<thead><tr><th>Site name</th><th>Expected</th><th>Planted</th><th>Visible</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    state.sites.forEach((site, idx) => {
+      const planted   = siteActual(site.id);
+      const isActive  = site.active !== false;
+      const tr = document.createElement('tr');
+      if (!isActive) tr.style.opacity = '0.5';
+      tr.innerHTML = `
+        <td><input type="text" value="${site.name}" id="site-edit-name-${idx}" style="width:100%;" /></td>
+        <td><input type="number" value="${site.expected}" id="site-edit-exp-${idx}" min="0" style="width:90px;" /></td>
+        <td style="color:var(--green-700);font-weight:500;">${planted.toLocaleString()}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn-sm ${isActive?'btn-sm-primary':'btn-sm-muted'}"
+            onclick="toggleSiteActive(${idx})" style="min-width:76px;">
+            ${isActive?'● Visible':'○ Hidden'}
+          </button>
+        </td>
+        <td style="white-space:nowrap;">
+          <button class="btn-sm btn-sm-primary" onclick="saveSite(${idx})" style="margin-right:4px;">Save</button>
+          <button class="btn-sm btn-sm-danger"  onclick="deleteSite(${idx})" ${planted>0?'disabled title="Has plantings"':''}>✕</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
   }
-  container.innerHTML = '';
-  const table = document.createElement('table');
-  table.className = 'mgmt-table';
-  table.innerHTML = '<thead><tr><th>Site name</th><th>Expected</th><th>Planted</th><th>Visible</th><th></th></tr></thead>';
-  const tbody = document.createElement('tbody');
-  state.sites.forEach((site, idx) => {
-    const planted   = siteActual(site.id);
-    const isActive  = site.active !== false;
-    const tr = document.createElement('tr');
-    if (!isActive) tr.style.opacity = '0.5';
-    tr.innerHTML = `
-      <td><input type="text" value="${site.name}" id="site-edit-name-${idx}" style="width:100%;" /></td>
-      <td><input type="number" value="${site.expected}" id="site-edit-exp-${idx}" min="0" style="width:90px;" /></td>
-      <td style="color:var(--green-700);font-weight:500;">${planted.toLocaleString()}</td>
-      <td style="white-space:nowrap;">
-        <button class="btn-sm ${isActive?'btn-sm-primary':'btn-sm-muted'}"
-          onclick="toggleSiteActive(${idx})" style="min-width:76px;">
-          ${isActive?'● Visible':'○ Hidden'}
-        </button>
-      </td>
-      <td style="white-space:nowrap;">
-        <button class="btn-sm btn-sm-primary" onclick="saveSite(${idx})" style="margin-right:4px;">Save</button>
-        <button class="btn-sm btn-sm-danger"  onclick="deleteSite(${idx})" ${planted>0?'disabled title="Has plantings"':''}>✕</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  container.appendChild(table);
+
+  // ── Quota summary ──────────────────────────────────────────────────────
+  const seasonQuota   = Object.values(state.startingSupplier || {}).reduce((a, b) => a + b, 0);
+  const totalExpected = state.sites.reduce((a, s) => a + (s.expected || 0), 0);
+  const diff          = seasonQuota - totalExpected;
+  const pctAssigned   = seasonQuota > 0 ? Math.min(100, totalExpected / seasonQuota * 100) : 0;
+  const isOver  = diff < 0;
+  const isExact = diff === 0 && seasonQuota > 0;
+  const barColor   = isOver ? 'var(--red)' : isExact ? 'var(--green-400)' : 'var(--amber)';
+  const diffColor  = isOver ? 'var(--red)' : isExact ? 'var(--green-700)' : 'var(--amber)';
+  const diffLabel  = isOver  ? `⚠ Over by ${Math.abs(diff).toLocaleString()}`
+                   : isExact ? '✓ Fully allocated'
+                   :           `${diff.toLocaleString()} unassigned`;
+
+  const summary = document.createElement('div');
+  summary.style.cssText = 'margin-top:14px;padding:14px 16px;background:var(--cream-100);border:1px solid var(--cream-300);border-radius:10px;';
+  summary.innerHTML = `
+    <div style="font-size:11px;font-weight:500;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-light);margin-bottom:10px;">Season quota allocation</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px;">Season quota</div>
+        <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--green-800);">${seasonQuota.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-light);">starting supplier stock</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px;">Sites expected</div>
+        <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--green-800);">${totalExpected.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-light);">sum of site targets</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px;">${isOver ? 'Over quota' : isExact ? 'Status' : 'Unassigned'}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:22px;color:${diffColor};">${diffLabel}</div>
+        <div style="font-size:11px;color:var(--text-light);">${pctAssigned.toFixed(1)}% allocated</div>
+      </div>
+    </div>
+    <div style="height:8px;background:var(--cream-200);border-radius:4px;overflow:hidden;">
+      <div style="height:100%;border-radius:4px;background:${barColor};width:${pctAssigned.toFixed(1)}%;transition:width 0.3s;"></div>
+    </div>
+  `;
+  container.appendChild(summary);
 }
 
 function saveSite(idx) {
