@@ -876,6 +876,7 @@
       </div>
     </div>
     <div class="stat-grid" id="stat-grid"></div>
+    <div class="form-card" id="schedule-widget" style="padding:20px 22px;margin-bottom:20px;"></div>
     <div class="stock-block">
       <div class="stock-header">
         <h2>Te Tapu O Tane — Supplier</h2>
@@ -1705,6 +1706,109 @@ function renderDashboard() {
   renderStockTable('depot-table',       'depot',       maxS);
   renderStockTable('corrections-table', 'corrections', maxC);
   renderTransferGrid();
+  renderScheduleWidget();
+}
+
+// ── PLANTING SCHEDULE WIDGET ──────────────────────
+function renderScheduleWidget() {
+  const state = getState();
+  const el    = document.getElementById('schedule-widget');
+  if (!el) return;
+
+  // Total target: sum of site expected values; fallback to starting supplier
+  const totalTarget = state.sites.reduce((a, s) => a + (s.expected || 0), 0) ||
+                      Object.values(state.startingSupplier || {}).reduce((a, b) => a + b, 0);
+
+  if (totalTarget === 0) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--text-light);">
+      Set site expected plant counts in <strong>Settings → Planting Sites</strong> to track your season schedule.
+    </div>`;
+    return;
+  }
+
+  // Dates
+  const today        = new Date();
+  const seasonStart  = new Date((state.seasonStart || today.toISOString().split('T')[0]) + 'T12:00:00');
+  const endYear      = seasonStart.getFullYear() + (seasonStart.getMonth() >= 9 ? 1 : 0);
+  const seasonEnd    = new Date(endYear, 8, 30); // Sep 30
+
+  const totalDays     = Math.max(1, (seasonEnd - seasonStart) / 864e5);
+  const daysElapsed   = Math.max(0, (today - seasonStart) / 864e5);
+  const daysRemaining = Math.max(0, (seasonEnd - today) / 864e5);
+  const isPast        = today > seasonEnd;
+
+  // Actuals
+  const planted      = state.plantings.reduce((t, p) => t + (p.count || 0), 0);
+  const expectedNow  = Math.round(totalTarget * Math.min(1, daysElapsed / totalDays));
+  const buffer       = planted - expectedNow;                 // >0 = ahead, <0 = behind
+  const pctDone      = Math.min(100, totalTarget > 0 ? planted / totalTarget * 100 : 0);
+  const pctExpected  = Math.min(99.5, totalTarget > 0 ? expectedNow / totalTarget * 100 : 0);
+
+  // This month
+  const thism = today.getMonth(), thisy = today.getFullYear();
+  const plantedThisMonth = state.plantings
+    .filter(p => { const d = p.date ? new Date(p.date + 'T12:00:00') : null; return d && d.getMonth() === thism && d.getFullYear() === thisy; })
+    .reduce((t, p) => t + (p.count || 0), 0);
+  const monthsRemaining  = daysRemaining / 30.44;
+  const monthlyNeeded    = monthsRemaining > 0.1 ? Math.round((totalTarget - planted) / monthsRemaining) : 0;
+
+  // Status label
+  const ABS = Math.abs(buffer);
+  const isOnTrack = ABS < Math.max(50, totalTarget * 0.02);
+  const statusText  = isPast          ? (planted >= totalTarget ? '✓ Season complete' : `↓ ${(totalTarget - planted).toLocaleString()} not planted`)
+                    : isOnTrack       ? '≈ On schedule'
+                    : buffer > 0      ? `▲ ${ABS.toLocaleString()} ahead`
+                    :                   `▼ ${ABS.toLocaleString()} behind`;
+  const statusColor = isPast          ? (planted >= totalTarget ? 'var(--green-700)' : 'var(--red)')
+                    : isOnTrack       ? 'var(--green-700)'
+                    : buffer > 0      ? 'var(--green-700)'
+                    :                   'var(--red)';
+  const endFmt   = seasonEnd.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+  const monthFmt = today.toLocaleDateString('en-NZ', { month: 'long' });
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <div>
+        <div class="form-section-title" style="margin:0;padding:0;border:0;">Planting Schedule</div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:3px;">Target: ${totalTarget.toLocaleString()} plants in ground by <strong>${endFmt}</strong></div>
+      </div>
+      <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:500;color:${statusColor};">${statusText}</div>
+    </div>
+
+    <!-- Overall progress bar with "expected by now" marker -->
+    <div style="position:relative;margin-bottom:5px;">
+      <div style="height:12px;background:var(--cream-200);border-radius:6px;overflow:visible;">
+        <div style="height:100%;background:var(--green-400);border-radius:6px;width:${pctDone.toFixed(1)}%;transition:width 0.4s;"></div>
+      </div>
+      ${!isPast && pctExpected > 0 ? `
+      <div style="position:absolute;top:-4px;bottom:-4px;left:calc(${pctExpected.toFixed(1)}% - 1px);width:2px;background:var(--amber);border-radius:2px;" title="Should be here by now"></div>
+      ` : ''}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-light);margin-bottom:14px;">
+      <span>${planted.toLocaleString()} planted (${pctDone.toFixed(1)}%)</span>
+      ${!isPast ? `<span style="color:var(--amber);font-size:11px;">▲ pace line</span>` : ''}
+      <span>Target: ${totalTarget.toLocaleString()}</span>
+    </div>
+
+    <!-- Three stat tiles -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+      <div style="background:var(--cream-100);border:1px solid var(--cream-300);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-light);margin-bottom:3px;">${monthFmt}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--green-700);">${plantedThisMonth.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-light);">planted this month</div>
+      </div>
+      <div style="background:var(--cream-100);border:1px solid var(--cream-300);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-light);margin-bottom:3px;">Pace needed</div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;color:${isPast ? 'var(--text-light)' : monthlyNeeded > 1500 ? 'var(--red)' : 'var(--amber)'};">${isPast ? '—' : monthlyNeeded.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-light);">${isPast ? 'season ended' : 'plants/month to finish'}</div>
+      </div>
+      <div style="background:var(--cream-100);border:1px solid var(--cream-300);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-light);margin-bottom:3px;">Remaining</div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--text-mid);">${Math.max(0, totalTarget - planted).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-light);">${isPast ? 'not planted' : Math.ceil(daysRemaining) + ' days left'}</div>
+      </div>
+    </div>
+  `;
 }
 
 function renderStockTable(tableId, stockKey, maxQty, startingStock) {
