@@ -1710,6 +1710,13 @@ function renderDashboard() {
 }
 
 // ── PLANTING SCHEDULE WIDGET ──────────────────────
+function setScheduleDeadline(val) {
+  const state = getState();
+  state.scheduleDeadline = val || '';
+  saveState();
+  renderScheduleWidget();
+}
+
 function renderScheduleWidget() {
   const state = getState();
   const el    = document.getElementById('schedule-widget');
@@ -1727,10 +1734,19 @@ function renderScheduleWidget() {
   }
 
   // Dates
-  const today        = new Date();
-  const seasonStart  = new Date((state.seasonStart || today.toISOString().split('T')[0]) + 'T12:00:00');
-  const endYear      = seasonStart.getFullYear() + (seasonStart.getMonth() >= 9 ? 1 : 0);
-  const seasonEnd    = new Date(endYear, 8, 30); // Sep 30
+  const today       = new Date();
+  const seasonStart = new Date((state.seasonStart || today.toISOString().split('T')[0]) + 'T12:00:00');
+
+  // Configurable deadline — stored in state.scheduleDeadline, defaults to Sep 30
+  let seasonEnd;
+  if (state.scheduleDeadline) {
+    seasonEnd = new Date(state.scheduleDeadline + 'T12:00:00');
+  } else {
+    const endYear = seasonStart.getFullYear() + (seasonStart.getMonth() >= 9 ? 1 : 0);
+    seasonEnd = new Date(endYear, 8, 30); // Sep 30
+  }
+  const deadlineValue = state.scheduleDeadline ||
+    (() => { const d = new Date(seasonEnd); return d.toISOString().split('T')[0]; })();
 
   const totalDays     = Math.max(1, (seasonEnd - seasonStart) / 864e5);
   const daysElapsed   = Math.max(0, (today - seasonStart) / 864e5);
@@ -1738,45 +1754,73 @@ function renderScheduleWidget() {
   const isPast        = today > seasonEnd;
 
   // Actuals
-  const planted      = state.plantings.reduce((t, p) => t + (p.count || 0), 0);
-  const expectedNow  = Math.round(totalTarget * Math.min(1, daysElapsed / totalDays));
-  const buffer       = planted - expectedNow;                 // >0 = ahead, <0 = behind
-  const pctDone      = Math.min(100, totalTarget > 0 ? planted / totalTarget * 100 : 0);
-  const pctExpected  = Math.min(99.5, totalTarget > 0 ? expectedNow / totalTarget * 100 : 0);
+  const planted     = state.plantings.reduce((t, p) => t + (p.count || 0), 0);
+  const expectedNow = Math.round(totalTarget * Math.min(1, daysElapsed / totalDays));
+  const buffer      = planted - expectedNow;
+  const pctDone     = Math.min(100, totalTarget > 0 ? planted / totalTarget * 100 : 0);
+  const pctExpected = Math.min(99.5, totalTarget > 0 ? expectedNow / totalTarget * 100 : 0);
+
+  // Projected finish date based on current daily pace
+  const dailyPace   = daysElapsed > 0.5 ? planted / daysElapsed : 0;
+  const remaining   = Math.max(0, totalTarget - planted);
+  let projFinishFmt = null, projColor = 'var(--text-light)', projIcon = '';
+  if (remaining === 0 && planted > 0) {
+    projFinishFmt = '✓ Target already reached!';
+    projColor     = 'var(--green-700)';
+    projIcon      = '';
+  } else if (dailyPace > 0) {
+    const projDate = new Date(today.getTime() + (remaining / dailyPace) * 864e5);
+    projFinishFmt  = projDate.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+    const beatsDl  = projDate <= seasonEnd;
+    projColor      = beatsDl ? 'var(--green-700)' : 'var(--red)';
+    projIcon       = beatsDl ? '✓ ' : '⚠ ';
+  }
 
   // This month
   const thism = today.getMonth(), thisy = today.getFullYear();
   const plantedThisMonth = state.plantings
     .filter(p => { const d = p.date ? new Date(p.date + 'T12:00:00') : null; return d && d.getMonth() === thism && d.getFullYear() === thisy; })
     .reduce((t, p) => t + (p.count || 0), 0);
-  const monthsRemaining  = daysRemaining / 30.44;
-  const monthlyNeeded    = monthsRemaining > 0.1 ? Math.round((totalTarget - planted) / monthsRemaining) : 0;
+  const monthsRemaining = daysRemaining / 30.44;
+  const monthlyNeeded   = monthsRemaining > 0.1 ? Math.round(remaining / monthsRemaining) : 0;
 
   // Status label
   const ABS = Math.abs(buffer);
   const isOnTrack = ABS < Math.max(50, totalTarget * 0.02);
-  const statusText  = isPast          ? (planted >= totalTarget ? '✓ Season complete' : `↓ ${(totalTarget - planted).toLocaleString()} not planted`)
-                    : isOnTrack       ? '≈ On schedule'
-                    : buffer > 0      ? `▲ ${ABS.toLocaleString()} ahead`
-                    :                   `▼ ${ABS.toLocaleString()} behind`;
-  const statusColor = isPast          ? (planted >= totalTarget ? 'var(--green-700)' : 'var(--red)')
-                    : isOnTrack       ? 'var(--green-700)'
-                    : buffer > 0      ? 'var(--green-700)'
-                    :                   'var(--red)';
+  const statusText  = isPast     ? (planted >= totalTarget ? '✓ Season complete' : `↓ ${remaining.toLocaleString()} not planted`)
+                    : isOnTrack  ? '≈ On schedule'
+                    : buffer > 0 ? `▲ ${ABS.toLocaleString()} ahead`
+                    :              `▼ ${ABS.toLocaleString()} behind`;
+  const statusColor = isPast     ? (planted >= totalTarget ? 'var(--green-700)' : 'var(--red)')
+                    : isOnTrack  ? 'var(--green-700)'
+                    : buffer > 0 ? 'var(--green-700)'
+                    :              'var(--red)';
   const endFmt   = seasonEnd.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
   const monthFmt = today.toLocaleDateString('en-NZ', { month: 'long' });
 
   el.innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
       <div>
         <div class="form-section-title" style="margin:0;padding:0;border:0;">Planting Schedule</div>
-        <div style="font-size:12px;color:var(--text-light);margin-top:3px;">Target: ${totalTarget.toLocaleString()} plants in ground by <strong>${endFmt}</strong></div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
+          Target: <strong>${totalTarget.toLocaleString()} plants</strong> in ground by
+          <input type="date" value="${deadlineValue}"
+            onchange="setScheduleDeadline(this.value)"
+            style="font-size:12px;font-family:'DM Sans',sans-serif;padding:2px 6px;border:1px solid var(--cream-300);border-radius:5px;background:var(--cream-100);color:var(--text-dark);cursor:pointer;margin-left:2px;width:auto;" />
+        </div>
+        ${projFinishFmt ? `
+        <div style="font-size:12px;margin-top:4px;color:${projColor};">
+          ${projIcon}At current pace, finishes <strong>${projFinishFmt}</strong>
+        </div>` : `
+        <div style="font-size:12px;margin-top:4px;color:var(--text-light);">
+          Log some plantings to see projected finish date
+        </div>`}
       </div>
       <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:500;color:${statusColor};">${statusText}</div>
     </div>
 
     <!-- Overall progress bar with "expected by now" marker -->
-    <div style="position:relative;margin-bottom:5px;">
+    <div style="position:relative;margin-bottom:5px;margin-top:10px;">
       <div style="height:12px;background:var(--cream-200);border-radius:6px;overflow:visible;">
         <div style="height:100%;background:var(--green-400);border-radius:6px;width:${pctDone.toFixed(1)}%;transition:width 0.4s;"></div>
       </div>
@@ -1786,7 +1830,7 @@ function renderScheduleWidget() {
     </div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-light);margin-bottom:14px;">
       <span>${planted.toLocaleString()} planted (${pctDone.toFixed(1)}%)</span>
-      ${!isPast ? `<span style="color:var(--amber);font-size:11px;">▲ pace line</span>` : ''}
+      ${!isPast ? `<span style="color:var(--amber);font-size:11px;">▲ expected pace line</span>` : ''}
       <span>Target: ${totalTarget.toLocaleString()}</span>
     </div>
 
@@ -1800,12 +1844,12 @@ function renderScheduleWidget() {
       <div style="background:var(--cream-100);border:1px solid var(--cream-300);border-radius:8px;padding:10px 12px;">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-light);margin-bottom:3px;">Pace needed</div>
         <div style="font-family:'Playfair Display',serif;font-size:20px;color:${isPast ? 'var(--text-light)' : monthlyNeeded > 1500 ? 'var(--red)' : 'var(--amber)'};">${isPast ? '—' : monthlyNeeded.toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--text-light);">${isPast ? 'season ended' : 'plants/month to finish'}</div>
+        <div style="font-size:11px;color:var(--text-light);">${isPast ? 'season ended' : 'plants / month to finish'}</div>
       </div>
       <div style="background:var(--cream-100);border:1px solid var(--cream-300);border-radius:8px;padding:10px 12px;">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-light);margin-bottom:3px;">Remaining</div>
-        <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--text-mid);">${Math.max(0, totalTarget - planted).toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--text-light);">${isPast ? 'not planted' : Math.ceil(daysRemaining) + ' days left'}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--text-mid);">${remaining.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-light);">${isPast ? 'not planted' : Math.ceil(daysRemaining) + ' days to deadline'}</div>
       </div>
     </div>
   `;
