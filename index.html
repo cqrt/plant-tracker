@@ -982,6 +982,17 @@
         <button class="yard-btn"             id="yard-btn-corrections" onclick="selectYard('corrections')">Corrections</button>
       </div>
       <p class="form-section-title">Species quantities</p>
+      <div style="background:var(--amber-light);border:1px solid rgba(201,125,42,0.35);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:500;color:var(--amber);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">↗ Suggest proportional mix</div>
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">
+          <div class="form-group" style="flex:0 0 auto;max-width:150px;">
+            <label class="form-label" style="font-size:11px;">Target plants</label>
+            <input type="number" id="suggest-total" min="1" step="1" placeholder="e.g. 500" />
+          </div>
+          <button class="btn" style="background:var(--amber);color:white;padding:10px 18px;flex-shrink:0;" onclick="suggestProportional()">Suggest →</button>
+          <div style="font-size:11px;color:var(--text-mid);line-height:1.5;">Fills in whole trays proportional<br>to what's in the selected yard</div>
+        </div>
+      </div>
       <div class="planting-species-grid" id="planting-species-grid"></div>
       <hr class="divider">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -1702,9 +1713,11 @@ function renderDashboard() {
   document.getElementById('corrections-total-badge').textContent = cor.toLocaleString()+' plants';
   const maxS = getPlants().reduce((m,p)=>Math.max(m,state.startingSupplier[p.id]||0),1);
   const maxC = Math.max(...getPlants().map(p=>state.corrections[p.id]||0),1);
+  const depMixTotal = getActivePlants().reduce((t,p)=>t+(state.depot[p.id]||0),0);
+  const corMixTotal = getActivePlants().reduce((t,p)=>t+(state.corrections[p.id]||0),0);
   renderStockTable('supplier-table',    'supplier',    maxS, state.startingSupplier);
-  renderStockTable('depot-table',       'depot',       maxS);
-  renderStockTable('corrections-table', 'corrections', maxC);
+  renderStockTable('depot-table',       'depot',       maxS, undefined, depMixTotal);
+  renderStockTable('corrections-table', 'corrections', maxC, undefined, corMixTotal);
   renderTransferGrid();
   renderScheduleWidget();
 }
@@ -1855,15 +1868,16 @@ function renderScheduleWidget() {
   `;
 }
 
-function renderStockTable(tableId, stockKey, maxQty, startingStock) {
+function renderStockTable(tableId, stockKey, maxQty, startingStock, mixTotal) {
   const state = getState();
   const table = document.getElementById(tableId);
   table.innerHTML = `<thead><tr><th>Plant</th><th>Trays</th><th>Qty</th></tr></thead>`;
   const tbody = document.createElement('tbody');
   getActivePlants().forEach(p => {
-    const qty   = state[stockKey][p.id] || 0;
-    const start = startingStock ? (startingStock[p.id] || 0) : 0;
+    const qty    = state[stockKey][p.id] || 0;
+    const start  = startingStock ? (startingStock[p.id] || 0) : 0;
     const pctRem = start > 0 ? Math.round(qty / start * 100) : null;
+    const pctMix = (mixTotal > 0 && pctRem === null) ? Math.round(qty / mixTotal * 100) : null;
     const pctColor = pctRem !== null
       ? (pctRem <= 25 ? 'var(--red)' : pctRem <= 50 ? 'var(--amber)' : 'var(--text-light)')
       : '';
@@ -1879,6 +1893,7 @@ function renderStockTable(tableId, stockKey, maxQty, startingStock) {
       <td class="qty">
         ${qty.toLocaleString()}
         ${pctRem !== null ? `<div style="font-size:11px;color:${pctColor};font-family:'DM Sans',sans-serif;font-weight:400;margin-top:2px;">${pctRem}% remaining</div>` : ''}
+        ${pctMix !== null ? `<div style="font-size:11px;color:var(--text-light);font-family:'DM Sans',sans-serif;font-weight:400;margin-top:2px;">${pctMix}% of yard mix</div>` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -2157,36 +2172,100 @@ function renderSpeciesGrid() {
   if (!grid) return;
   grid.innerHTML = '';
   getActivePlants().forEach(p => {
-    const avail = (state[_selectedYard]?.[p.id]) || 0;
-    const row   = document.createElement('div');
+    const avail     = (state[_selectedYard]?.[p.id]) || 0;
+    const availTrys = Math.floor(avail / p.traySize);
+    const row = document.createElement('div');
     row.className = 'species-input-row';
     row.innerHTML = `
-      <div class="plant-info">
+      <div class="plant-info" style="flex:1;">
         <div class="plant-name">${p.name}</div>
         <div style="font-size:11px;color:var(--text-light);font-style:italic;margin-top:1px;">${p.sci}</div>
-        <div class="avail-note" id="sp-hint-${p.id}" style="margin-top:3px;">${avail.toLocaleString()} available</div>
+        <div class="avail-note" id="sp-hint-${p.id}" style="margin-top:3px;">${avail.toLocaleString()} avail (${availTrys} tr)</div>
       </div>
-      <input type="number" min="0" step="1" value="0" id="sp-${p.id}"
-        oninput="updateSpeciesHint('${p.id}',${avail})" />
+      <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" min="0" step="1" value="" placeholder="0"
+            id="sp-trays-${p.id}" style="width:54px;"
+            oninput="updateSpeciesHint('${p.id}',${avail},${p.traySize})" />
+          <span style="font-size:10px;color:var(--text-light);white-space:nowrap;">tr ×${p.traySize}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" min="0" step="1" value="" placeholder="0"
+            id="sp-${p.id}" style="width:54px;"
+            oninput="updateSpeciesHint('${p.id}',${avail},${p.traySize})" />
+          <span style="font-size:10px;color:var(--text-light);">loose</span>
+        </div>
+      </div>
     `;
     grid.appendChild(row);
   });
 }
 
-function updateSpeciesHint(id, avail) {
-  const val=parseInt(document.getElementById('sp-'+id).value)||0;
-  const hint=document.getElementById('sp-hint-'+id);
-  if(val>avail){
-    hint.className='avail-note error'; hint.textContent=`⚠ Only ${avail.toLocaleString()} available`;
-  } else if(val>0){
-    hint.className='avail-note'; hint.textContent=`${(avail-val).toLocaleString()} remaining`;
+function updateSpeciesHint(id, avail, traySize) {
+  const ts    = traySize || 1;
+  const trays = parseInt(document.getElementById('sp-trays-'+id)?.value) || 0;
+  const loose = parseInt(document.getElementById('sp-'+id)?.value) || 0;
+  const val   = trays * ts + loose;
+  const hint  = document.getElementById('sp-hint-'+id);
+  const availTrys = Math.floor(avail / ts);
+  if (val > avail) {
+    hint.className = 'avail-note error';
+    hint.textContent = `⚠ Only ${avail.toLocaleString()} avail (${availTrys} tr)`;
+  } else if (val > 0) {
+    hint.className = 'avail-note';
+    hint.textContent = `${(avail - val).toLocaleString()} rem → ${val.toLocaleString()} selected`;
   } else {
-    hint.className='avail-note'; hint.textContent=`${avail.toLocaleString()} available`;
+    hint.className = 'avail-note';
+    hint.textContent = `${avail.toLocaleString()} avail (${availTrys} full trays)`;
   }
-  let total=0;
-  getActivePlants().forEach(p=>{ total+=parseInt(document.getElementById('sp-'+p.id)?.value||0)||0; });
-  const el=document.getElementById('planting-running-total');
-  if(el) el.textContent=total.toLocaleString();
+  let total = 0;
+  getActivePlants().forEach(p => {
+    const t2 = parseInt(document.getElementById('sp-trays-'+p.id)?.value) || 0;
+    const l2 = parseInt(document.getElementById('sp-'+p.id)?.value) || 0;
+    total += t2 * p.traySize + l2;
+  });
+  const el = document.getElementById('planting-running-total');
+  if (el) el.textContent = total.toLocaleString();
+}
+
+// ── PROPORTIONAL PLANTING SUGGESTER ───────────────
+function suggestProportional() {
+  const state  = getState();
+  const yard   = _selectedYard;
+  const target = parseInt(document.getElementById('suggest-total')?.value) || 0;
+  if (target < 1) { toast('Enter a target number of plants'); return; }
+
+  const plants = getActivePlants();
+  const avails = plants.map(p => ({ p, avail: state[yard]?.[p.id] || 0 })).filter(x => x.avail > 0);
+  const yardTotal = avails.reduce((t, x) => t + x.avail, 0);
+  if (yardTotal === 0) { toast('No plants available in the selected yard'); return; }
+
+  const effectiveTarget = Math.min(target, yardTotal);
+
+  // Assign whole trays proportionally; accumulate remainder for a second pass
+  let assignedTotal = 0;
+  const assignments = avails.map(({ p, avail }) => {
+    const proportion   = avail / yardTotal;
+    const idealPlants  = proportion * effectiveTarget;
+    const maxTrays     = Math.floor(avail / p.traySize);
+    const trays        = Math.min(maxTrays, Math.floor(idealPlants / p.traySize));
+    const plantCount   = trays * p.traySize;
+    assignedTotal     += plantCount;
+    return { p, trays, avail };
+  });
+
+  // Fill inputs and refresh hints
+  plants.forEach(p => {
+    const a = assignments.find(x => x.p.id === p.id);
+    const elT = document.getElementById('sp-trays-'+p.id);
+    const elL = document.getElementById('sp-'+p.id);
+    if (elT) elT.value = a && a.trays > 0 ? a.trays : '';
+    if (elL) elL.value = '';
+    updateSpeciesHint(p.id, state[yard]?.[p.id] || 0, p.traySize);
+  });
+
+  const speciesCount = assignments.filter(a => a.trays > 0).length;
+  toast(`✓ Suggested ${assignedTotal.toLocaleString()} plants across ${speciesCount} species (target: ${target.toLocaleString()})`);
 }
 
 function renderPlantings() {
@@ -2265,7 +2344,9 @@ function submitPlanting() {
   const species={};
   let count=0, hasError=false;
   getActivePlants().forEach(p=>{
-    const val  =parseInt(document.getElementById('sp-'+p.id)?.value)||0;
+    const t    = parseInt(document.getElementById('sp-trays-'+p.id)?.value)||0;
+    const l    = parseInt(document.getElementById('sp-'+p.id)?.value)||0;
+    const val  = t * p.traySize + l;
     const avail=state[yardId]?.[p.id]||0;
     if(val>avail) hasError=true;
     if(val>0){ species[p.id]=val; count+=val; }
@@ -2281,7 +2362,12 @@ function submitPlanting() {
   const site     =state.sites.find(s=>s.id===siteId);
   const yardLabel=yardId==='corrections'?'Corrections':'Queens Park';
   toast(`✓ Logged ${count.toLocaleString()} plants from ${yardLabel} at ${site?site.name:siteId}`);
-  getActivePlants().forEach(p=>{ document.getElementById('sp-'+p.id).value=0; });
+  getActivePlants().forEach(p=>{
+    const el1 = document.getElementById('sp-trays-'+p.id);
+    const el2 = document.getElementById('sp-'+p.id);
+    if(el1) el1.value='';
+    if(el2) el2.value='';
+  });
   document.getElementById('planting-notes').value='';
   document.getElementById('planting-running-total').textContent='0';
   renderPlantings();
