@@ -1973,8 +1973,14 @@ function renderOrderForm() {
       <label class="form-label">${p.name} <span class="sci">${p.sci}</span>
         <span style="font-size:10px;color:var(--text-light);font-weight:400;margin-left:4px;">${p.traySize}/tray</span>
       </label>
-      <input type="number" id="qty-${p.id}" min="0" step="${p.traySize}" value="0"
-        oninput="updateOrderHints('${p.id}',${avail},${p.traySize}); updateRunningTotal();" />
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="ord-trays-${p.id}" min="0" step="1" value="" placeholder="0"
+          style="flex:1;" oninput="updateOrderHints('${p.id}',${avail},${p.traySize}); updateRunningTotal();" />
+        <span style="font-size:10px;color:var(--text-light);white-space:nowrap;">tr ×${p.traySize}</span>
+        <input type="number" id="ord-loose-${p.id}" min="0" step="1" value="" placeholder="0"
+          style="flex:1;" oninput="updateOrderHints('${p.id}',${avail},${p.traySize}); updateRunningTotal();" />
+        <span style="font-size:10px;color:var(--text-light);white-space:nowrap;">loose</span>
+      </div>
       <div class="order-pct-bar-wrap"><div class="order-pct-bar" id="pct-bar-${p.id}" style="width:0%"></div></div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span class="order-tray-badge" id="tray-badge-${p.id}">0 trays</span>
@@ -1987,12 +1993,14 @@ function renderOrderForm() {
 }
 
 function updateOrderHints(id, avail, traySize) {
-  const val      = parseInt(document.getElementById('qty-'+id).value) || 0;
+  const p        = getPlants().find(x => x.id === id);
+  const ts       = traySize || (p ? p.traySize : 1);
+  const trays    = parseInt(document.getElementById('ord-trays-'+id)?.value) || 0;
+  const loose    = parseInt(document.getElementById('ord-loose-'+id)?.value) || 0;
+  const val      = trays * ts + loose;
   const hint     = document.getElementById('hint-'+id);
   const bar      = document.getElementById('pct-bar-'+id);
   const badge    = document.getElementById('tray-badge-'+id);
-  const p        = getPlants().find(x => x.id === id);
-  const ts       = traySize || (p ? p.traySize : 1);
   const availTrys = Math.floor(avail / ts);
   const pctVal   = avail > 0 ? Math.min(100, val / avail * 100) : 0;
 
@@ -2010,17 +2018,12 @@ function updateOrderHints(id, avail, traySize) {
       badge.className = 'order-tray-badge';
       badge.textContent = '0 trays';
     } else {
-      const trayCount   = val / ts;
-      const isWhole     = val % ts === 0;
-      const nearestDown = Math.floor(val / ts) * ts;
-      const nearestUp   = Math.ceil(val / ts) * ts;
-      if (!isWhole) {
-        badge.className = 'order-tray-badge warn';
-        badge.textContent = `⚠ ${trayCount.toFixed(2)} trays — not whole! ↓${nearestDown} or ↑${nearestUp}`;
-      } else {
-        badge.className = 'order-tray-badge good';
-        badge.textContent = `${trayCount} tray${trayCount !== 1 ? 's' : ''} (${pctVal.toFixed(1)}%)`;
-      }
+      const wholeTrays = Math.floor(val / ts);
+      const remLoose   = val % ts;
+      badge.className = 'order-tray-badge good';
+      badge.textContent = remLoose > 0
+        ? `${wholeTrays} tray${wholeTrays !== 1 ? 's' : ''} + ${remLoose} loose (${pctVal.toFixed(1)}%)`
+        : `${wholeTrays} tray${wholeTrays !== 1 ? 's' : ''} (${pctVal.toFixed(1)}%)`;
     }
   }
 
@@ -2039,7 +2042,11 @@ function updateOrderHints(id, avail, traySize) {
 
 function updateRunningTotal() {
   let total=0;
-  getActivePlants().forEach(p=>{ total+=parseInt(document.getElementById('qty-'+p.id)?.value||0)||0; });
+  getActivePlants().forEach(p=>{
+    const t = parseInt(document.getElementById('ord-trays-'+p.id)?.value)||0;
+    const l = parseInt(document.getElementById('ord-loose-'+p.id)?.value)||0;
+    total += t * p.traySize + l;
+  });
   document.getElementById('order-running-total').textContent=total.toLocaleString();
 }
 
@@ -2052,7 +2059,9 @@ function submitOrder() {
   let total = 0, hasError = false;
   if (!date) { toast('Please select a date'); return; }
   getActivePlants().forEach(p => {
-    const val = parseInt(document.getElementById('qty-'+p.id).value) || 0;
+    const t = parseInt(document.getElementById('ord-trays-'+p.id)?.value) || 0;
+    const l = parseInt(document.getElementById('ord-loose-'+p.id)?.value) || 0;
+    const val = t * p.traySize + l;
     if (val > (state.supplier[p.id]||0)) hasError = true;
     if (val > 0) { items[p.id] = val; total += val; }
   });
@@ -2066,7 +2075,12 @@ function submitOrder() {
   state.orders.unshift({ ts: Date.now(), date, location, notes, items, total });
   saveState();
   toast(`✓ Order submitted — ${total.toLocaleString()} plants transferred to depot`);
-  getPlants().forEach(p => { document.getElementById('qty-'+p.id).value = 0; });
+  getPlants().forEach(p => {
+    const el1 = document.getElementById('ord-trays-'+p.id);
+    const el2 = document.getElementById('ord-loose-'+p.id);
+    if (el1) el1.value = '';
+    if (el2) el2.value = '';
+  });
   document.getElementById('order-date').value     = '';
   document.getElementById('order-location').value = '';
   document.getElementById('order-notes').value    = '';
@@ -2128,14 +2142,17 @@ function reorderOrder(idx) {
 
   // Fill in quantities for each species that was in the original order
   Object.entries(order.items).forEach(([id, qty]) => {
-    const el = document.getElementById('qty-' + id);
-    if (!el) return;   // species may be hidden or deleted
-    el.value = qty;
-    const p  = getActivePlants().find(x => x.id === id);
-    if (p) {
-      const avail = state.supplier[p.id] || 0;
-      updateOrderHints(id, avail, p.traySize);
-    }
+    const p = getActivePlants().find(x => x.id === id);
+    if (!p) return;   // species may be hidden or deleted
+    const ts = p.traySize || 1;
+    const trays = Math.floor(qty / ts);
+    const loose = qty % ts;
+    const elT = document.getElementById('ord-trays-' + id);
+    const elL = document.getElementById('ord-loose-' + id);
+    if (elT) elT.value = trays > 0 ? trays : '';
+    if (elL) elL.value = loose > 0 ? loose : '';
+    const avail = state.supplier[p.id] || 0;
+    updateOrderHints(id, avail, ts);
   });
 
   updateRunningTotal();
