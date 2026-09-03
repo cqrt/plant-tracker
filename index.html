@@ -2802,6 +2802,16 @@ function exportCurrentSeasonPDF() {
   const totalPlanted  = state.plantings.reduce((t, p) => t + (p.count || 0), 0);
   const totalOrdered  = state.orders.reduce((t, o) => t + (o.total || 0), 0);
 
+  // Season closed if everything ordered has been planted
+  const seasonClosed = totalOrdered > 0 && totalPlanted >= totalOrdered;
+  let endFmt = 'Present';
+  if (seasonClosed) {
+    // Use the latest planting date as the effective end date
+    const allDates = state.plantings.map(p => p.date).filter(d => d).sort().reverse();
+    const endDate = allDates.length ? allDates[0] : now.toISOString().split('T')[0];
+    endFmt = new Date(endDate + 'T12:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
   const reportHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2906,7 +2916,7 @@ function exportCurrentSeasonPDF() {
 <body>
   <div class="report-header">
     <div class="report-title">${state.seasonName}</div>
-    <div class="report-subtitle">${startFmt} — Present · Generated ${generatedFmt}</div>
+    <div class="report-subtitle">${startFmt} — ${endFmt} · Generated ${generatedFmt}</div>
   </div>
 
   <div class="report-meta">
