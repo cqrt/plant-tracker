@@ -2442,7 +2442,7 @@ function renderSites() {
       </div>
       <div class="site-progress-row">
         <span><strong style="color:var(--green-700)">${actual.toLocaleString()}</strong> planted</span>
-        <span>${site.expected.toLocaleString()} expected</span>
+        <span>${Math.max(0, site.expected - actual).toLocaleString()} remaining</span>
       </div>
       <div class="site-bar-wrap"><div class="site-bar ${barClass}" style="width:${pctDone}%"></div></div>
       ${breakdownHtml}
