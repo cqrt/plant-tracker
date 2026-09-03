@@ -874,6 +874,7 @@
         <p class="section-title" id="dashboard-season-title">Stock Overview</p>
         <p class="section-sub"   id="dashboard-season-sub">Current inventory across all locations</p>
       </div>
+      <button class="btn" style="background:var(--amber);color:white;flex-shrink:0;" onclick="exportCurrentSeasonPDF()">📄 PDF Report</button>
     </div>
     <div class="stat-grid" id="stat-grid"></div>
     <div class="form-card" id="schedule-widget" style="padding:20px 22px;margin-bottom:20px;"></div>
@@ -2762,6 +2763,252 @@ function saveArchiveEdit() {
   closeEditArchiveModal();
   renderArchives();
   toast('✓ Archive updated');
+}
+
+// ── CURRENT SEASON PDF REPORT ──────────────────────
+function exportCurrentSeasonPDF() {
+  const state = getState();
+  const now = new Date();
+  const generatedFmt = now.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+  const startFmt = state.seasonStart
+    ? new Date(state.seasonStart + 'T12:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '—';
+
+  // Species summary — starting vs used vs remaining
+  const speciesData = getActivePlants().map(p => {
+    const start = state.startingSupplier?.[p.id] ?? 0;
+    const nowQ  = state.supplier?.[p.id] ?? 0;
+    const used  = Math.max(0, start - nowQ);
+    return { ...p, start, final: nowQ, used };
+  }).filter(s => s.start > 0 || s.used > 0);
+
+  // Sites
+  const sitesData = state.sites.filter(s => s.active !== false).map(s => {
+    const planted = siteActual(s.id);
+    const pct = s.expected > 0 ? Math.min(100, Math.round(planted / s.expected * 100)) : 0;
+    return { name: s.name, planted, expected: s.expected, pct };
+  }).filter(s => s.expected > 0 || s.planted > 0).sort((a, b) => b.planted - a.planted);
+
+  // Groups
+  const groupsData = state.groups.map(g => ({
+    name: g.name,
+    total: groupTotal(g.id)
+  })).filter(g => g.total > 0).sort((a, b) => b.total - a.total);
+
+  // Plantings
+  const plantingsData = [...(state.plantings || [])].sort((a, b) => b.date.localeCompare(a.date));
+
+  // Totals
+  const totalPlanted  = state.plantings.reduce((t, p) => t + (p.count || 0), 0);
+  const totalOrdered  = state.orders.reduce((t, o) => t + (o.total || 0), 0);
+
+  const reportHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${state.seasonName} - Season Report</title>
+  <style>
+    @page { size: A4; margin: 15mm 20mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #1a2e22;
+      background: white;
+    }
+    .report-header {
+      text-align: center;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #336146;
+    }
+    .report-title {
+      font-family: Georgia, serif;
+      font-size: 24pt;
+      color: #1a3a2a;
+      margin-bottom: 6px;
+    }
+    .report-subtitle {
+      font-size: 11pt;
+      color: #6b8c79;
+    }
+    .report-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding: 12px;
+      background: #f0faf4;
+      border-radius: 6px;
+    }
+    .report-meta-item { text-align: center; }
+    .report-meta-label {
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6b8c79;
+      margin-bottom: 2px;
+    }
+    .report-meta-value {
+      font-family: Georgia, serif;
+      font-size: 18pt;
+      color: #264d38;
+    }
+    .report-section { margin-bottom: 20px; }
+    .report-section-title {
+      font-family: Georgia, serif;
+      font-size: 14pt;
+      color: #1a3a2a;
+      margin-bottom: 10px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #b8dcc6;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 12px; }
+    th {
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #3d5748;
+      border-bottom: 2px solid;
+    }
+    td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+    tr:last-child td { border-bottom: none; }
+    tfoot td { font-weight: 600; border-top: 2px solid; }
+    .num { text-align: right; font-family: Georgia, serif; }
+    .report-footer {
+      margin-top: 30px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+      text-align: center;
+      font-size: 9pt;
+      color: #6b8c79;
+    }
+    .section-species th { background: #ddf0e5; border-bottom-color: #8cc4a0; }
+    .section-species tfoot td { background: #f0faf4; border-top-color: #8cc4a0; }
+    .section-sites { background: #e8f4fc; padding: 14px; border-radius: 8px; }
+    .section-sites .report-section-title { color: #1a4a6a; border-bottom-color: #7ab8d4; }
+    .section-sites th { background: #d0e8f8; border-bottom-color: #5a9fc8; color: #2a5a7a; }
+    .section-sites tfoot td { background: #c8e0f4; border-top-color: #5a9fc8; }
+    .section-groups { background: #fef3e8; padding: 14px; border-radius: 8px; }
+    .section-groups .report-section-title { color: #8a4a1a; border-bottom-color: #d4a07a; }
+    .section-groups th { background: #fce8d8; border-bottom-color: #c8905a; color: #6a3a2a; }
+    .section-groups tfoot td { background: #f8e0c8; border-top-color: #c8905a; }
+    .section-plantings { background: #f4f0f8; padding: 14px; border-radius: 8px; }
+    .section-plantings .report-section-title { color: #4a3a6a; border-bottom-color: #a090c4; }
+    .section-plantings th { background: #e8e0f4; border-bottom-color: #9080b8; color: #3a2a5a; }
+    .section-plantings tfoot td { background: #e4d8f0; border-top-color: #9080b8; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <div class="report-title">${state.seasonName}</div>
+    <div class="report-subtitle">${startFmt} — Present · Generated ${generatedFmt}</div>
+  </div>
+
+  <div class="report-meta">
+    <div class="report-meta-item">
+      <div class="report-meta-label">Total Planted</div>
+      <div class="report-meta-value">${totalPlanted.toLocaleString()}</div>
+    </div>
+    <div class="report-meta-item">
+      <div class="report-meta-label">Total Ordered</div>
+      <div class="report-meta-value">${totalOrdered.toLocaleString()}</div>
+    </div>
+    <div class="report-meta-item">
+      <div class="report-meta-label">Planting Events</div>
+      <div class="report-meta-value">${state.plantings.length}</div>
+    </div>
+    <div class="report-meta-item">
+      <div class="report-meta-label">Species Used</div>
+      <div class="report-meta-value">${speciesData.filter(s => s.used > 0).length}</div>
+    </div>
+  </div>
+
+  <div class="report-section section-species">
+    <div class="report-section-title">Species Summary</div>
+    <table>
+      <thead><tr><th>Species</th><th>Scientific</th><th class="num">Starting</th><th class="num">Used</th><th class="num">Remaining</th></tr></thead>
+      <tbody>
+        ${speciesData.map(s => `<tr>
+          <td>${s.name}</td>
+          <td style="font-style:italic;color:#6b8c79;">${s.sci}</td>
+          <td class="num">${s.start.toLocaleString()}</td>
+          <td class="num">${s.used.toLocaleString()}</td>
+          <td class="num">${s.final.toLocaleString()}</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="2">Total</td><td class="num">${speciesData.reduce((t, s) => t + s.start, 0).toLocaleString()}</td><td class="num">${speciesData.reduce((t, s) => t + s.used, 0).toLocaleString()}</td><td class="num">${speciesData.reduce((t, s) => t + s.final, 0).toLocaleString()}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="report-section section-sites">
+    <div class="report-section-title">By Site</div>
+    <table>
+      <thead><tr><th>Site</th><th class="num">Expected</th><th class="num">Planted</th><th class="num">%</th></tr></thead>
+      <tbody>
+        ${sitesData.slice(0, 15).map(s => `<tr>
+          <td>${s.name}</td>
+          <td class="num">${s.expected.toLocaleString()}</td>
+          <td class="num">${s.planted.toLocaleString()}</td>
+          <td class="num">${s.pct}%</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot><tr><td>Total</td><td class="num">${sitesData.reduce((t, s) => t + s.expected, 0).toLocaleString()}</td><td class="num">${sitesData.reduce((t, s) => t + s.planted, 0).toLocaleString()}</td><td class="num">${sitesData.length > 0 ? Math.round(sitesData.reduce((t, s) => t + s.planted, 0) / sitesData.reduce((t, s) => t + s.expected, 1) * 100) : 0}%</td></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="report-section section-groups">
+    <div class="report-section-title">By Group</div>
+    <table>
+      <thead><tr><th>Group</th><th class="num">Plants</th><th class="num">Share</th></tr></thead>
+      <tbody>
+        ${groupsData.slice(0, 12).map(g => {
+          const share = groupsData.reduce((t, g) => t + g.total, 0) > 0 ? Math.round(g.total / groupsData.reduce((t, g) => t + g.total, 0) * 100) : 0;
+          return `<tr><td>${g.name}</td><td class="num">${g.total.toLocaleString()}</td><td class="num">${share}%</td></tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr><td>Total</td><td class="num">${groupsData.reduce((t, g) => t + g.total, 0).toLocaleString()}</td><td class="num">100%</td></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="report-section section-plantings">
+    <div class="report-section-title">Plantings</div>
+    <table>
+      <thead><tr><th>Date</th><th>Site</th><th>Group</th><th class="num">Plants</th></tr></thead>
+      <tbody>
+        ${plantingsData.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#6b8c79;">No plantings recorded</td></tr>' : plantingsData.map(p => {
+          const site = state.sites.find(s => s.id === p.siteId);
+          const group = state.groups.find(g => g.id === p.groupId);
+          const dateFmt = new Date(p.date + 'T12:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+          return `<tr><td>${dateFmt}</td><td>${site ? site.name : p.siteId || '—'}</td><td>${group ? group.name : p.groupId || '—'}</td><td class="num">${p.count.toLocaleString()}</td></tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="report-footer">
+    Generated on ${generatedFmt} • ICC Plant Stock — ${state.seasonName}
+  </div>
+</body>
+</html>`;
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    toast('⚠ Pop-up blocked — please allow pop-ups to export PDF');
+    return;
+  }
+  printWindow.document.write(reportHTML);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 250);
 }
 
 function toggleArchive(uid) { document.getElementById(uid).classList.toggle('open'); }
