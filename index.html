@@ -2056,16 +2056,24 @@ function submitOrder() {
   const location = document.getElementById('order-location').value.trim();
   const notes    = document.getElementById('order-notes').value.trim();
   const items    = {};
-  let total = 0, hasError = false;
+  let total = 0, toppedUp = false;
   if (!date) { toast('Please select a date'); return; }
   getActivePlants().forEach(p => {
     const t = parseInt(document.getElementById('ord-trays-'+p.id)?.value) || 0;
     const l = parseInt(document.getElementById('ord-loose-'+p.id)?.value) || 0;
     const val = t * p.traySize + l;
-    if (val > (state.supplier[p.id]||0)) hasError = true;
-    if (val > 0) { items[p.id] = val; total += val; }
+    if (val > 0) {
+      const over = val - (state.supplier[p.id] || 0);
+      if (over > 0) {
+        // Auto-top-up supplier stock to accommodate the over-order
+        state.supplier[p.id]         = (state.supplier[p.id] || 0)         + over;
+        state.startingSupplier[p.id] = (state.startingSupplier[p.id] || 0) + over;
+        toppedUp = true;
+      }
+      items[p.id] = val;
+      total += val;
+    }
   });
-  if (hasError)  { toast('⚠ One or more quantities exceed available stock'); return; }
   if (total===0) { toast('Enter at least one plant quantity'); return; }
   getPlants().forEach(p => {
     const qty = items[p.id] || 0;
@@ -2074,7 +2082,9 @@ function submitOrder() {
   });
   state.orders.unshift({ ts: Date.now(), date, location, notes, items, total });
   saveState();
-  toast(`✓ Order submitted — ${total.toLocaleString()} plants transferred to depot`);
+  toast((toppedUp
+    ? `↗ Season quota adjusted — `
+    : ``) + `✓ ${total.toLocaleString()} plants ordered and transferred to depot`);
   getPlants().forEach(p => {
     const el1 = document.getElementById('ord-trays-'+p.id);
     const el2 = document.getElementById('ord-loose-'+p.id);
